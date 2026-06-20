@@ -2,7 +2,7 @@ import streamlit as st
 import sys
 import os
 import requests
-import urllib.parse  # Safely encode URL characters
+import urllib.parse
 from datetime import datetime
 from streamlit_js_eval import streamlit_js_eval
 
@@ -29,10 +29,9 @@ from fishing_agent_app.crew import FishingAgentApp
 st.set_page_config(page_title="PNW Mobile Fishing Crew", page_icon="🎣", layout="centered")
 st.title("🎣 Mobile Fishing Advisor")
 
-# 📸 VISUAL CARD SELECTION CONFIGURATION
+# 🐟 VISUAL CARD SELECTION CONFIGURATION
 st.subheader("🐟 Choose Your Target Species")
 
-# Streamlit Pills component creates beautiful, tappable mobile-friendly buttons with emoji icons
 target_fish = st.pills(
     "Tap a species to select your target:",
     options=[
@@ -51,14 +50,12 @@ target_fish = st.pills(
 
 st.info(f"🎯 Currently targeting: **{target_fish}**")
 
-# Determine environment type automatically based on the visual pill selection
 is_saltwater = target_fish in ["Resident Coho Salmon", "Chinook Salmon", "Puget Sound Surfperch", "Flounder"]
 environment_type = "Marine (Saltwater)" if is_saltwater else "Freshwater"
 
 # 📡 LOCATION CONFIGURATION SYSTEM
 st.subheader("📡 Location Configuration")
 
-# Try to get the browser's hardware GPS coordinates
 gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps')
 
 lat, lon, location_name = None, None, ""
@@ -90,7 +87,6 @@ else:
         except Exception as ge:
             st.error(f"Geocoding stream failed: {ge}")
 
-# If we have successfully locked onto coordinates via GPS or fallback typing
 if lat and lon:
     @st.cache_data(ttl=900)
     def get_weather_data(latitude, longitude):
@@ -101,7 +97,6 @@ if lat and lon:
         weather = get_weather_data(lat, lon)
         current = weather['current']
         
-        # Calculate Pressure Trend
         current_pressure = current['surface_pressure']
         past_pressure = weather['hourly']['surface_pressure'][-3] 
         diff = current_pressure - past_pressure
@@ -117,19 +112,20 @@ if lat and lon:
         elif cc < 60: cloud_word = "Partially Cloudy"
         else: cloud_word = "Overcast"
 
-        st.subheader(f"🌦️ Live Environmental Metrics for {location_name}")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric(label="Air Temp Estimation", value=f"{current['temperature_2m']}°F")
-            st.metric(label="Barometric Trend", value=trend, delta=f"{diff:.2f} hPa")
-        with col2:
-            st.metric(label="Cloud Cover", value=cloud_word)
-            st.metric(label="Wind Velocity", value=f"{current['wind_speed_10m']} mph")
+        # 📱 UPGRADE: Collapsible Live Environmental Data Drawer
+        with st.expander(f"🌦️ View Live Environmental Metrics for {location_name}", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric(label="Air Temp Estimation", value=f"{current['temperature_2m']}°F")
+                st.metric(label="Barometric Trend", value=trend, delta=f"{diff:.2f} hPa")
+            with col2:
+                st.metric(label="Cloud Cover", value=cloud_word)
+                st.metric(label="Wind Velocity", value=f"{current['wind_speed_10m']} mph")
 
         if st.button("Generate Tactical Strategy Plan", type="primary"):
             inputs = {
                 'target_fish': target_fish,
-                'environment': environment_type,  # Injected environment context
+                'environment': environment_type,  
                 'water_temp': f"{current['temperature_2m']}°F",  
                 'barometric_pressure': trend, 
                 'cloud_cover': cloud_word,
@@ -139,11 +135,24 @@ if lat and lon:
             
             with st.spinner("🤖 Consulting AI Specialists..."):
                 result = FishingAgentApp().crew().kickoff(inputs=inputs)
+                raw_output = result.raw if hasattr(result, 'raw') else str(result)
                 st.success("🎯 Strategy Formulated!")
-                if hasattr(result, 'raw'):
-                    st.markdown(result.raw)
+                
+                # 📱 UPGRADE: Intelligently parse and split the output into two collapsible mobile views
+                if "### 🎣 Tactical Strategy Plan" in raw_output:
+                    parts = raw_output.split("### 🎣 Tactical Strategy Plan")
+                    compliance_section = parts[0].replace("### 🚨 WDFW Legal Compliance Guardrails & Environment", "").strip()
+                    tactical_section = parts[1].strip()
+                    
+                    with st.expander("🚨 WDFW Legal Compliance Guardrails", expanded=False):
+                        st.markdown(compliance_section)
+                        
+                    with st.expander("🎣 Tactical Strategy Plan", expanded=True):
+                        st.markdown(tactical_section)
                 else:
-                    st.markdown(str(result))
+                    # Fallback drawer if markdown structure strings vary
+                    with st.expander("📋 View Generated Strategy Details", expanded=True):
+                        st.markdown(raw_output)
 
     except Exception as err:
         st.error(f"Failed to compile weather data stream: {err}")
