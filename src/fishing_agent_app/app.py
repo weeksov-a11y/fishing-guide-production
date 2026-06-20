@@ -112,8 +112,16 @@ if lat and lon:
         elif cc < 60: cloud_word = "Partially Cloudy"
         else: cloud_word = "Overcast"
 
-        # 📱 UPGRADE: Collapsible Live Environmental Data Drawer
+        # 🔀 DYNAMIC STATE DETECTION LOGIC
+        if "OR" in location_name or "Oregon" in location_name:
+            detected_state = "Oregon"
+            agency_name = "ODFW (Oregon Department of Fish and Wildlife)"
+        else:
+            detected_state = "Washington"
+            agency_name = "WDFW (Washington Department of Fish and Wildlife)"
+
         with st.expander(f"🌦️ View Live Environmental Metrics for {location_name}", expanded=True):
+            st.caption(f"🗺️ Jurisdiction Detected: {detected_state} ({agency_name})")
             col1, col2 = st.columns(2)
             with col1:
                 st.metric(label="Air Temp Estimation", value=f"{current['temperature_2m']}°F")
@@ -126,6 +134,7 @@ if lat and lon:
             inputs = {
                 'target_fish': target_fish,
                 'environment': environment_type,  
+                'current_state': detected_state,
                 'water_temp': f"{current['temperature_2m']}°F",  
                 'barometric_pressure': trend, 
                 'cloud_cover': cloud_word,
@@ -138,19 +147,18 @@ if lat and lon:
                 raw_output = result.raw if hasattr(result, 'raw') else str(result)
                 st.success("🎯 Strategy Formulated!")
                 
-                # 📱 UPGRADE: Intelligently parse and split the output into two collapsible mobile views
+                # Split and output into clean collapsible views matching your task format
                 if "### 🎣 Tactical Strategy Plan" in raw_output:
                     parts = raw_output.split("### 🎣 Tactical Strategy Plan")
-                    compliance_section = parts[0].replace("### 🚨 WDFW Legal Compliance Guardrails & Environment", "").strip()
+                    compliance_section = parts[0].replace("### 🚨 Regional Legal Compliance Guardrails & Environment", "").strip()
                     tactical_section = parts[1].strip()
                     
-                    with st.expander("🚨 WDFW Legal Compliance Guardrails", expanded=False):
+                    with st.expander(f"🚨 {agency_name} Legal Compliance Guardrails", expanded=False):
                         st.markdown(compliance_section)
                         
                     with st.expander("🎣 Tactical Strategy Plan", expanded=True):
                         st.markdown(tactical_section)
                 else:
-                    # Fallback drawer if markdown structure strings vary
                     with st.expander("📋 View Generated Strategy Details", expanded=True):
                         st.markdown(raw_output)
 
