@@ -3,6 +3,7 @@ import sys
 import os
 import requests
 import urllib.parse
+import re
 from datetime import datetime
 from streamlit_js_eval import streamlit_js_eval
 
@@ -56,11 +57,9 @@ environment_type = "Marine (Saltwater)" if is_saltwater else "Freshwater"
 # 📡 LOCATION CONFIGURATION SYSTEM
 st.subheader("📡 Location Configuration")
 
-# Initialize session state for GPS tracking if it doesn't exist
 if "use_gps" not in st.session_state:
     st.session_state.use_gps = False
 
-# 📱 USER INTERACTION TRIGGER: Force a button click so mobile browsers authorize the GPS stream
 if st.button("📍 Tap to Share Mobile GPS Location", type="secondary", use_container_width=True):
     st.session_state.use_gps = True
 
@@ -76,31 +75,43 @@ if gps_location:
     location_name = f"GPS Coordinates ({lat:.4f}, {lon:.4f})"
     st.success(f"🔒 Mobile Satellite Link Active: {lat:.4f}, {lon:.4f}")
 else:
-    # If mobile GPS isn't explicitly clicked/authorized yet, show the fallback input field
     manual_city = st.text_input("📍 Location Fallback (Enter City, State if GPS is off)", value="Tacoma, WA")
     
-    # 🛡️ Bulletproof Default: If the user clears out the text field entirely, force it to default to home base
     if not manual_city.strip():
         manual_city = "Tacoma, WA"
         
-    clean_city = manual_city.split(",")[0].strip()
-    encoded_city = urllib.parse.quote(clean_city)
+    # 🧼 SMART CLEANING LOGIC: Strips commas, periods, and ensures global query anchors to the US
+    search_query = manual_city.replace(".", "").replace(",", " ").strip()
+    
+    # If the user typed a 2-letter state code like 'WA' or 'OR', append USA to keep it from jumping to India/worldwide
+    if re.search(r'\b(WA|OR|wa|or|Washington|Oregon)\b', search_query):
+        search_query += " USA"
+        
+    encoded_city = urllib.parse.quote(search_query)
     
     try:
-        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={encoded_city}&count=1&language=en&format=json"
+        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={encoded_city}&count=5&language=en&format=json"
         geo_res = requests.get(geo_url).json()
         
         if "results" in geo_res and len(geo_res["results"]) > 0:
-            lat = geo_res["results"][0]["latitude"]
-            lon = geo_res["results"][0]["longitude"]
-            location_name = f"{geo_res['results'][0]['name']}, {geo_res['results'][0].get('admin1', '')}"
+            # Filter results for USA if possible, otherwise take the first match
+            us_match = None
+            for res in geo_res["results"]:
+                if res.get("country_code") == "US":
+                    us_match = res
+                    break
+            
+            final_res = us_match if us_match else geo_res["results"][0]
+            
+            lat = final_res["latitude"]
+            lon = final_res["longitude"]
+            location_name = f"{final_res['name']}, {final_res.get('admin1', '')}"
             st.success(f"🗺️ Set to location: {location_name} ({lat:.4f}, {lon:.4f})")
         else:
-            st.warning(f"Could not resolve details for '{clean_city}'. Falling back to default baseline.")
+            st.warning(f"Could not resolve details for '{manual_city}'. Falling back to default baseline.")
             lat, lon, location_name = 47.2529, -122.4443, "Tacoma, WA"
     except Exception as ge:
         st.error(f"Geocoding stream failed: {ge}")
-        # Final emergency hard fallback coordinates to keep app from freezing
         lat, lon, location_name = 47.2529, -122.4443, "Tacoma, WA"
 
 if lat and lon:
