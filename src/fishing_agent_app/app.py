@@ -56,36 +56,52 @@ environment_type = "Marine (Saltwater)" if is_saltwater else "Freshwater"
 # 📡 LOCATION CONFIGURATION SYSTEM
 st.subheader("📡 Location Configuration")
 
-gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps')
+# Initialize session state for GPS tracking if it doesn't exist
+if "use_gps" not in st.session_state:
+    st.session_state.use_gps = False
+
+# 📱 USER INTERACTION TRIGGER: Force a button click so mobile browsers authorize the GPS stream
+if st.button("📍 Tap to Share Mobile GPS Location", type="secondary", use_container_width=True):
+    st.session_state.use_gps = True
 
 lat, lon, location_name = None, None, ""
+
+gps_location = None
+if st.session_state.use_gps:
+    gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps_click')
 
 if gps_location:
     lat = gps_location['coords']['latitude']
     lon = gps_location['coords']['longitude']
     location_name = f"GPS Coordinates ({lat:.4f}, {lon:.4f})"
-    st.success(f"🔒 Satellite GPS Connection Active: {lat:.4f}, {lon:.4f}")
+    st.success(f"🔒 Mobile Satellite Link Active: {lat:.4f}, {lon:.4f}")
 else:
-    st.info("Searching for browser satellite stream... (Laptops often block this)")
-    manual_city = st.text_input("📍 Laptop Fallback: Enter your current location manually", value="Tacoma, WA")
+    # If mobile GPS isn't explicitly clicked/authorized yet, show the fallback input field
+    manual_city = st.text_input("📍 Location Fallback (Enter City, State if GPS is off)", value="Tacoma, WA")
     
-    if manual_city:
-        clean_city = manual_city.split(",")[0].strip()
-        encoded_city = urllib.parse.quote(clean_city)
+    # 🛡️ Bulletproof Default: If the user clears out the text field entirely, force it to default to home base
+    if not manual_city.strip():
+        manual_city = "Tacoma, WA"
         
-        try:
-            geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={encoded_city}&count=1&language=en&format=json"
-            geo_res = requests.get(geo_url).json()
-            
-            if "results" in geo_res and len(geo_res["results"]) > 0:
-                lat = geo_res["results"][0]["latitude"]
-                lon = geo_res["results"][0]["longitude"]
-                location_name = f"{geo_res['results'][0]['name']}, {geo_res['results'][0].get('admin1', '')}"
-                st.success(f"🗺️ Locked to manual location: {location_name} ({lat:.4f}, {lon:.4f})")
-            else:
-                st.warning(f"Could not resolve query details for '{clean_city}'. Try entering just the city name.")
-        except Exception as ge:
-            st.error(f"Geocoding stream failed: {ge}")
+    clean_city = manual_city.split(",")[0].strip()
+    encoded_city = urllib.parse.quote(clean_city)
+    
+    try:
+        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={encoded_city}&count=1&language=en&format=json"
+        geo_res = requests.get(geo_url).json()
+        
+        if "results" in geo_res and len(geo_res["results"]) > 0:
+            lat = geo_res["results"][0]["latitude"]
+            lon = geo_res["results"][0]["longitude"]
+            location_name = f"{geo_res['results'][0]['name']}, {geo_res['results'][0].get('admin1', '')}"
+            st.success(f"🗺️ Set to location: {location_name} ({lat:.4f}, {lon:.4f})")
+        else:
+            st.warning(f"Could not resolve details for '{clean_city}'. Falling back to default baseline.")
+            lat, lon, location_name = 47.2529, -122.4443, "Tacoma, WA"
+    except Exception as ge:
+        st.error(f"Geocoding stream failed: {ge}")
+        # Final emergency hard fallback coordinates to keep app from freezing
+        lat, lon, location_name = 47.2529, -122.4443, "Tacoma, WA"
 
 if lat and lon:
     @st.cache_data(ttl=900)
@@ -147,7 +163,6 @@ if lat and lon:
                 raw_output = result.raw if hasattr(result, 'raw') else str(result)
                 st.success("🎯 Strategy Formulated!")
                 
-                # Split and output into clean collapsible views matching your task format
                 if "### 🎣 Tactical Strategy Plan" in raw_output:
                     parts = raw_output.split("### 🎣 Tactical Strategy Plan")
                     compliance_section = parts[0].replace("### 🚨 Regional Legal Compliance Guardrails & Environment", "").strip()
