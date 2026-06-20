@@ -79,29 +79,33 @@ else:
     if not manual_city.strip():
         manual_city = "Tacoma, WA"
         
-    # 🧼 CLEANING: Extract just the core city name (splitting by commas or spaces) so the API gets a clean keyword
-    clean_city = manual_city.replace(".", "").split(",")[0].strip().split(" ")[0].strip()
+    # 🧼 FIXED CLEANING: Grab everything before the comma completely to protect multi-word cities!
+    clean_city = manual_city.replace(".", "").split(",")[0].strip()
     encoded_city = urllib.parse.quote(clean_city)
     
     try:
-        # We tell the API to return up to 10 global matches for that name
-        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={encoded_city}&count=10&language=en&format=json"
+        # Pull up to 20 results so we have plenty of room to hunt down the exact state match
+        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={encoded_city}&count=20&language=en&format=json"
         geo_res = requests.get(geo_url).json()
         
         if "results" in geo_res and len(geo_res["results"]) > 0:
             us_match = None
             
-            # 🔍 SMART MATCHING: Look through the global list for the one located in the US
+            # 🔍 SMART SCANNER: Look for a match in the US, prioritizing the specific state typed
             for res in geo_res["results"]:
                 if res.get("country_code") == "US":
-                    # Extra bonus check: if the user typed 'OR' or 'Oregon', prioritize the Oregon match
+                    # Check if the user hinted at Oregon
                     if "OR" in manual_city.upper() or "OREGON" in manual_city.upper():
                         if res.get("admin1") == "Oregon":
                             us_match = res
                             break
+                    # Check if the user hinted at Washington
+                    elif "WA" in manual_city.upper() or "WASHINGTON" in manual_city.upper():
+                        if res.get("admin1") == "Washington":
+                            us_match = res
+                            break
                     us_match = res
             
-            # Use our discovered US match, otherwise fall back to the very first result
             final_res = us_match if us_match else geo_res["results"][0]
             
             lat = final_res["latitude"]
