@@ -6,8 +6,8 @@ analyze_weather_task:
 
 check_regulations_task:
   description: >
-    Review the fishing rules for taking {target_fish} in the state of Washington, focusing on standard rules for the area.
-    Identify gear restrictions (e.g., barbless hooks for salmon, bait bans) and daily retention limits.
+    Review the fishing rules for taking {target_fish} in the state of {current_state}, focusing on standard rules for the area or specific body of water.
+    Identify gear restrictions (e.g., barbless hooks, bait bans, artificial lures only) and daily bag/retention limits.
   expected_output: >
     A bulleted list of current legal hook types, bait restrictions, and daily limits.
 
@@ -17,8 +17,8 @@ prescribe_lures_task:
   expected_output: >
     The output MUST be formatted into two distinct sections:
     
-    ### 🚨 WDFW Legal Compliance Guardrails & Environment
-    [Include a detailed section here showing the legal rules, hook requirements, bait bans, and daily catch limits provided by the compliance officer for this species and environment type].
+    ### 🚨 Regional Legal Compliance Guardrails & Environment
+    [Include a detailed section here showing the legal rules, hook requirements, bait bans, and daily catch limits provided by the compliance officer for this species and state].
     
     ### 🎣 Tactical Strategy Plan
     [Provide exactly 3 highly specific configurations, including Lure type, Color Palette, Rigging, Target Depth, and Presentation Tips matching these conditions].
