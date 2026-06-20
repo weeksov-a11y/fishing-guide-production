@@ -34,7 +34,7 @@ class FishingAgentApp():
             tgt_agent.cache_prompt = False
         return tgt_agent
 
-    @agent
+   @agent
     def wdfw_compliance_officer(self) -> Agent:
         """💡 Added: The Fishery Regulations & Catch Limits Guardrail Agent"""
         tgt_agent = Agent(
