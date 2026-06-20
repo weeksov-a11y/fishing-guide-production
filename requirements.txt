@@ -1,0 +1,5 @@
+crewai==0.100.1
+litellm
+requests
+streamlit
+streamlit-js-eval

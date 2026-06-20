@@ -1,0 +1,24 @@
+analyze_weather_task:
+  description: >
+    Review the current weather, wind, and atmospheric trends for {target_fish} in a {environment} environment at the specified coordinates.
+  expected_output: >
+    A concise summary of how these specific conditions will impact the target species' activity level and depth placement.
+
+check_regulations_task:
+  description: >
+    Review the fishing rules for taking {target_fish} in the state of Washington, focusing on standard rules for the area.
+    Identify gear restrictions (e.g., barbless hooks for salmon, bait bans) and daily retention limits.
+  expected_output: >
+    A bulleted list of current legal hook types, bait restrictions, and daily limits.
+
+prescribe_lures_task:
+  description: >
+    Using the behavioral analysis and the compliance guardrails generated in the previous tasks, prescribe exactly 3 tackle setups optimized for catching {target_fish} in this {environment} environment.
+  expected_output: >
+    The output MUST be formatted into two distinct sections:
+    
+    ### 🚨 WDFW Legal Compliance Guardrails & Environment
+    [Include a detailed section here showing the legal rules, hook requirements, bait bans, and daily catch limits provided by the compliance officer for this species and environment type].
+    
+    ### 🎣 Tactical Strategy Plan
+    [Provide exactly 3 highly specific configurations, including Lure type, Color Palette, Rigging, Target Depth, and Presentation Tips matching these conditions].
