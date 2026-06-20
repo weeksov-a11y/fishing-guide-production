@@ -3,14 +3,14 @@ from crewai.project import CrewBase, agent, crew, task
 import os
 import streamlit as st
 
-# 🛠️ Securely fetch the key from Streamlit's private backend cloud settings
+# Securely fetch the key from Streamlit's private backend cloud settings
 if "GROQ_API_KEY" in st.secrets:
     os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
-# 🧠 Configure a base LLM object cleanly omitting default caching flags
+# Configure a base LLM object cleanly omitting default caching flags
 groq_llm = LLM(
     model="groq/llama-3.1-8b-instant",
     temperature=0.7
@@ -34,9 +34,8 @@ class FishingAgentApp():
             tgt_agent.cache_prompt = False
         return tgt_agent
 
-   @agent
+    @agent
     def wdfw_compliance_officer(self) -> Agent:
-        """💡 Added: The Fishery Regulations & Catch Limits Guardrail Agent"""
         tgt_agent = Agent(
             config=self.agents_config['wdfw_compliance_officer'],
             llm=groq_llm,
@@ -65,7 +64,6 @@ class FishingAgentApp():
 
     @task
     def check_regulations_task(self) -> Task:
-        """💡 Added: The Compliance Check Task"""
         return Task(
             config=self.tasks_config['check_regulations_task'],
         )
@@ -78,7 +76,6 @@ class FishingAgentApp():
 
     @crew
     def crew(self) -> Crew:
-        """Creates the fishing advice crew pipeline"""
         return Crew(
             agents=self.agents, 
             tasks=self.tasks, 
