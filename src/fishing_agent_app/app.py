@@ -79,45 +79,33 @@ else:
     if not manual_city.strip():
         manual_city = "Tacoma, WA"
         
-    # 🧼 FIXED CLEANING: Grab everything before the comma completely to protect multi-word cities!
-    clean_city = manual_city.replace(".", "").split(",")[0].strip()
-    encoded_city = urllib.parse.quote(clean_city)
+    encoded_city = urllib.parse.quote(manual_city.strip())
     
     try:
-        # Pull up to 20 results so we have plenty of room to hunt down the exact state match
-        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={encoded_city}&count=20&language=en&format=json"
-        geo_res = requests.get(geo_url).json()
+        # 🗺️ OpenStreetMap API - Strictly bounded to the US, handling commas and state codes flawlessly
+        headers = {'User-Agent': 'PNWFishingAdvisorApp/1.0'}
+        osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&countrycodes=us&format=json&addressdetails=1&limit=1"
+        osm_res = requests.get(osm_url, headers=headers).json()
         
-        if "results" in geo_res and len(geo_res["results"]) > 0:
-            us_match = None
+        if osm_res and len(osm_res) > 0:
+            match = osm_res[0]
+            lat = float(match["lat"])
+            lon = float(match["lon"])
             
-            # 🔍 SMART SCANNER: Look for a match in the US, prioritizing the specific state typed
-            for res in geo_res["results"]:
-                if res.get("country_code") == "US":
-                    # Check if the user hinted at Oregon
-                    if "OR" in manual_city.upper() or "OREGON" in manual_city.upper():
-                        if res.get("admin1") == "Oregon":
-                            us_match = res
-                            break
-                    # Check if the user hinted at Washington
-                    elif "WA" in manual_city.upper() or "WASHINGTON" in manual_city.upper():
-                        if res.get("admin1") == "Washington":
-                            us_match = res
-                            break
-                    us_match = res
+            # Extract state cleanly from structural address object
+            address = match.get("address", {})
+            city_display = address.get("city", address.get("town", address.get("village", match["display_name"].split(",")[0])))
+            state_display = address.get("state", "Washington")
             
-            final_res = us_match if us_match else geo_res["results"][0]
-            
-            lat = final_res["latitude"]
-            lon = final_res["longitude"]
-            location_name = f"{final_res['name']}, {final_res.get('admin1', '')}"
-            st.success(f"🗺️ Set to location: {location_name} ({lat:.4f}, {lon:.4f})")
+            location_name = f"{city_display}, {state_display}"
+            st.success(f"🗺️ Locked onto location: {location_name} ({lat:.4f}, {lon:.4f})")
         else:
-            st.warning(f"Could not resolve details for '{manual_city}'. Falling back to default baseline.")
-            lat, lon, location_name = 47.2529, -122.4443, "Tacoma, WA"
+            st.warning(f"Could not resolve location parameters for '{manual_city}'. Defaulting to baseline.")
+            lat, lon, location_name = 47.2529, -122.4443, "Tacoma, Washington"
+            
     except Exception as ge:
-        st.error(f"Geocoding stream failed: {ge}")
-        lat, lon, location_name = 47.2529, -122.4443, "Tacoma, WA"
+        st.error(f"Geocoding stream timeout or failure: {ge}")
+        lat, lon, location_name = 47.2529, -122.4443, "Tacoma, Washington"
 
 if lat and lon:
     @st.cache_data(ttl=900)
@@ -145,7 +133,7 @@ if lat and lon:
         else: cloud_word = "Overcast"
 
         # 🔀 DYNAMIC STATE DETECTION LOGIC
-        if "OR" in location_name or "Oregon" in location_name:
+        if "Oregon" in location_name or "OR" in location_name:
             detected_state = "Oregon"
             agency_name = "ODFW (Oregon Department of Fish and Wildlife)"
         else:
