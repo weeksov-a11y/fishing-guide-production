@@ -56,26 +56,27 @@ class FishingAgentApp():
             tgt_agent.cache_prompt = False
         return tgt_agent
 
-@task
+    @task
     def analyze_weather_task(self) -> Task:
         return Task(
             config=self.tasks_config['analyze_weather_task'],
-            agent=self.weather_analyst()  # 💡 Explicitly assigned the weather analyst
+            agent=self.weather_analyst()
         )
 
     @task
     def check_regulations_task(self) -> Task:
         return Task(
             config=self.tasks_config['check_regulations_task'],
-            agent=self.wdfw_compliance_officer()  # 💡 Explicitly assigned the WDFW officer
+            agent=self.wdfw_compliance_officer()
         )
 
     @task
     def prescribe_lures_task(self) -> Task:
         return Task(
             config=self.tasks_config['prescribe_lures_task'],
-            agent=self.lure_specialist()  # 💡 Explicitly assigned the lure specialist
+            agent=self.lure_specialist()
         )
+
     @crew
     def crew(self) -> Crew:
         return Crew(
