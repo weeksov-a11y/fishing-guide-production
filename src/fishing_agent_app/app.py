@@ -36,46 +36,46 @@ app_base_url = "https://fishing-guide.streamlit.app"
 st.logo(logo_path) 
 
 st.html(
-    f"""
+    """
     <script>
         // Force standard mobile favicon and apple-touch links
         var tags = [
-            {{ rel: 'apple-touch-icon', href: '{app_base_url}/~/+/src/fishing_agent_app/app_icon.png' }},
-            {{ rel: 'icon', type: 'image/png', href: '{app_base_url}/~/+/src/fishing_agent_app/app_icon.png' }},
-            {{ rel: 'shortcut icon', href: '{app_base_url}/~/+/src/fishing_agent_app/app_icon.png' }}
+            { rel: 'apple-touch-icon', href: 'https://fishing-guide.streamlit.app/~/+/src/fishing_agent_app/app_icon.png' },
+            { rel: 'icon', type: 'image/png', href: 'https://fishing-guide.streamlit.app/~/+/src/fishing_agent_app/app_icon.png' },
+            { rel: 'shortcut icon', href: 'https://fishing-guide.streamlit.app/~/+/src/fishing_agent_app/app_icon.png' }
         ];
         
-        tags.forEach(function(t) {{
+        tags.forEach(function(t) {
             var link = window.parent.document.createElement('link');
             link.rel = t.rel;
             if (t.type) link.type = t.type;
             link.href = t.href;
             window.parent.document.getElementsByTagName('head')[0].appendChild(link);
-        }});
+        });
 
         // Override the modern Web Manifest file that Android Chrome reads
         var manifestLink = window.parent.document.querySelector('link[rel="manifest"]');
-        if (manifestLink) {{
+        if (manifestLink) {
             fetch(manifestLink.href)
                 .then(response => response.json())
-                .then(data => {{
+                .then(data => {
                     data.icons = [
-                        {{
-                            "src": "{app_base_url}/~/+/src/fishing_agent_app/app_icon.png",
+                        {
+                            "src": "https://fishing-guide.streamlit.app/~/+/src/fishing_agent_app/app_icon.png",
                             "sizes": "192x192",
                             "type": "image/png",
                             "purpose": "any maskable"
-                        }},
-                        {{
-                            "src": "{app_base_url}/~/+/src/fishing_agent_app/app_icon.png",
+                        },
+                        {
+                            "src": "https://fishing-guide.streamlit.app/~/+/src/fishing_agent_app/app_icon.png",
                             "sizes": "512x512",
                             "type": "image/png",
                             "purpose": "any maskable"
-                        }}
+                        }
                     ];
-                    var blob = new Blob([JSON.stringify(data)], {{type: 'application/json'}});
+                    var blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
                     manifestLink.href = URL.createObjectURL(blob);
-                }});
+                });
         }
     </script>
     """
