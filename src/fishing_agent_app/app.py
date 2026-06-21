@@ -195,40 +195,48 @@ if lat and lon:
         live_gauge_data = "Station data unavailable for static land locations."
         
         if env_choice == "Freshwater":
-            # Compute a clean bounding box coordinate perimeter for real USGS stations
-            west_lon = lon - 0.25
-            south_lat = lat - 0.25
-            east_lon = lon + 0.25
-            north_lat = lat + 0.25
+            # 🗺️ Expanded coordinate square box to widen search boundaries
+            west_lon = lon - 0.45
+            south_lat = lat - 0.45
+            east_lon = lon + 0.45
+            north_lat = lat + 0.45
             
-            usgs_url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&bBox={west_lon:.4f},{south_lat:.4f},{east_lon:.4f},{north_lat:.4f}&parameterCd=00060,00065&siteStatus=all"
+            usgs_url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&bBox={west_lon:.4f},{south_lat:.4f},{east_lon:.4f},{north_lat:.4f}&parameterCd=00060,00065&siteStatus=active"
             try:
-                usgs_res = requests.get(usgs_url, timeout=5).json()
+                usgs_res = requests.get(usgs_url, timeout=6).json()
                 time_series = usgs_res.get('value', {}).get('timeSeries', [])
-                if time_series:
-                    site_name = time_series[0]['sourceInfo']['siteName']
-                    val = time_series[0]['values'][0]['value'][0]['value']
-                    p_code = time_series[0]['variable']['variableCode'][0]['value']
-                    unit = "CFS (Flow Rate)" if "00060" in p_code else "ft (Gauge Height)"
-                    live_gauge_data = f"🌊 Nearest USGS Live Gauge: {site_name} | Current Reading: {val} {unit}"
+                
+                # 🛡️ DEFENSIVE OBJECT PARSING: Safely unpacks JSON loops step-by-step
+                if time_series and len(time_series) > 0:
+                    ts_entry = time_series[0]
+                    site_name = ts_entry.get('sourceInfo', {}).get('siteName', 'Unknown Stream')
+                    values_block = ts_entry.get('values', [])
+                    
+                    if values_block and len(values_block) > 0 and len(values_block[0].get('value', [])) > 0:
+                        val = values_block[0]['value'][0]['value']
+                        p_code = ts_entry.get('variable', {}).get('variableCode', [{}])[0].get('value', '')
+                        unit = "CFS (Flow Volume)" if "00060" in p_code else "ft (Water Height)"
+                        live_gauge_data = f"🌊 Nearest Active Field Gauge: {site_name} | Current State: {val} {unit}"
+                    else:
+                        live_gauge_data = f"🌊 Active Station Found ({site_name}) but stream data frame is empty."
                 else:
-                    live_gauge_data = "🌊 USGS Streamflow: No active river flow gauges detected within this immediate zone."
-            except Exception:
-                live_gauge_data = "🌊 USGS Streamflow: Station array loop offline or timed out."
+                    live_gauge_data = "⚠️ Local Hydrology: No active river flow gauges found in this lake zone."
+            except Exception as e:
+                live_gauge_data = "⚠️ Local Hydrology: Stream telemetry loop bypassed due to network timeout."
         else:
             # Direct dynamic lookups to the NOAA Tides API
             noaa_url = f"https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?date=latest&range=24&product=water_level&datum=MLLW&units=english&time_zone=lst_ldt&format=json&application=PNWFishingCrew&station=9446484"
             try:
                 noaa_res = requests.get(noaa_url, timeout=5).json()
-                if "data" in noaa_res:
+                if "data" in noaa_res and len(noaa_res["data"]) > 0:
                     latest_reading = noaa_res["data"][-1]
                     tide_height = latest_reading["v"]
                     tide_time = latest_reading["t"]
                     live_gauge_data = f"⚓ NOAA Marine Station 9446484 (Tacoma) | Current Tide Level: {tide_height} ft above MLLW at {tide_time}"
                 else:
-                    live_gauge_data = "⚓ NOAA Tides: Station active but returning empty data frame strings."
+                    live_gauge_data = "⚓ NOAA Tides: Marine monitoring arrays reporting empty data frames."
             except Exception:
-                live_gauge_data = "⚓ NOAA Tides: Marine station link currently experiencing a stream timeout."
+                live_gauge_data = "⚓ NOAA Tides: Marine telemetry link timed out."
 
         with st.expander(f"🌦️ Live Environmental Metrics & Maps for {active_water_body}", expanded=True):
             st.caption(f"🗺️ Jurisdiction: {detected_state} ({agency_name})")
