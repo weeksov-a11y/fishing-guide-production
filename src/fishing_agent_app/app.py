@@ -8,7 +8,6 @@ from streamlit_js_eval import streamlit_js_eval
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-# Securely fetch the key from Streamlit's private backend cloud settings
 if "GEMINI_API_KEY" in st.secrets:
     os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
 
@@ -29,6 +28,12 @@ from fishing_agent_app.crew import FishingAgentApp
 
 st.set_page_config(page_title="PNW Mobile Fishing Crew", page_icon="🎣", layout="centered")
 st.title("🎣 Mobile Fishing Advisor")
+
+# Initialize session state for tracking auto-suggested options dynamically
+if "suggested_lakes" not in st.session_state:
+    st.session_state.suggested_lakes = []
+if "previous_search" not in st.session_state:
+    st.session_state.previous_search = ""
 
 # 🌊 STEP 1: CHOOSE ENVIRONMENT FIRST
 st.subheader("🌊 Step 1: Select Your Environment")
@@ -64,13 +69,16 @@ lat, lon, location_name = None, None, ""
 water_context = ""
 display_summary = ""
 
+# Track if search configuration fundamentally changed to wipe stale suggestion lists
+current_search_fingerprint = f"{env_choice}-{target_fish}-{routing_mode}"
+
 if routing_mode == "🛰️ Use My Mobile GPS Coordinates":
     gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps_click')
     if gps_location:
         lat = gps_location['coords']['latitude']
         lon = gps_location['coords']['longitude']
         location_name = f"GPS: ({lat:.4f}, {lon:.4f})"
-        water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f}. Provide data exclusively for this spot."
+        water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f}."
         display_summary = "🎯 Locked to Live Satellite GPS Location"
         st.success(f"🔒 Mobile Satellite Link Active: {location_name}")
     else:
@@ -83,9 +91,7 @@ elif routing_mode == "✍️ Enter a Specific Water Body By Name":
     user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="American Lake")
     manual_city = st.text_input("📍 City/State closest to this water (for weather tracking):", value="Tacoma, WA")
     
-    # 🎯 Wrapped cleanly inside triple quotes to prevent any symbol collision with Python string delimiters
-    water_context = f"""the specific single body of water named {user_water}. You MUST completely ignore your standard background task instruction to suggest multiple local spots. Do NOT mention, contrast, or list any other alternative lakes or water systems. Provide information, legal regulations, limits, and tactical rigging setups exclusively for {user_water} and nothing else."""
-    
+    water_context = f"the specific single body of water named {user_water}. You MUST ignore alternative recommendations and focus exclusively on {user_water}."
     display_summary = f"🗺️ Target Water Body: **{user_water}**"
     location_name = manual_city if manual_city.strip() else "Tacoma, WA"
 
@@ -94,8 +100,23 @@ else: # 🔍 Suggest Local Hotspots Mode
     if not manual_city.strip():
         manual_city = "Tacoma, WA"
     location_name = manual_city
-    water_context = f"Top highly-rated local {env_choice} spots near {location_name} specifically known for holding {target_fish}"
-    display_summary = f"🔍 Auto-Scouting Local {env_choice} Hotspots near {location_name}"
+    
+    if current_search_fingerprint != st.session_state.previous_search:
+        st.session_state.suggested_lakes = []
+        st.session_state.previous_search = current_search_fingerprint
+
+    # Mock baseline items that populate instantly while waiting for the AI to scout real ones
+    if not st.session_state.suggested_lakes:
+        if env_choice == "Freshwater":
+            st.session_state.suggested_lakes = ["Spanaway Lake", "American Lake", "Lake Kapowsin"]
+        else:
+            st.session_state.suggested_lakes = ["Marine Area 11 (Tacoma)", "Marine Area 13 (Olympia)", "Point Defiance Pier"]
+
+    # 🌟 NEW UPGRADE: Dynamic dropdown choice of suggested waters
+    selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=st.session_state.suggested_lakes)
+    
+    water_context = f"the specific body of water named {selected_suggested}. Provide information, rules, and gear layouts exclusively for {selected_suggested}."
+    display_summary = f"🔍 Scouting Hotspot Choice: **{selected_suggested}**"
 
 # Geocoding resolution for weather processing
 if location_name and not lat:
@@ -133,7 +154,7 @@ execute_crew = st.button("🚀 Generate Tactical Strategy Plan", type="primary",
 # 📋 SHOW LIVE STATS BELOW BUTTON
 if lat and lon:
     try:
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,cloud_cover,surface_pressure,wind_speed_10m&hourly=surface_pressure&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto"
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,cloud_cover,surface_pressure,wind_speed_10m&hourly=surface_pressure,precipitation&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto"
         weather = requests.get(url).json()
         current = weather['current']
         
@@ -145,9 +166,21 @@ if lat and lon:
         cc = current['cloud_cover']
         cloud_word = "Clear/Sunny" if cc < 20 else "Partially Cloudy" if cc < 60 else "Overcast"
 
+        # 🌟 NEW UPGRADE: Smart Weather-Driven Water Clarity Estimation
+        recent_rain = sum(weather['hourly'].get('precipitation', [0.0])[-12:]) # check last 12 hours of rain
+        current_wind = current['wind_speed_10m']
+        
+        if recent_rain > 0.50 or current_wind > 15:
+            clarity_estimate = "Stained / Highly Turbid (Muddy runoff or high winds churning bottom)"
+        elif recent_rain > 0.15:
+            clarity_estimate = "Slightly Stained / Milky"
+        else:
+            clarity_estimate = "Clear Water (Favorable visibility)"
+
         with st.expander(f"🌦️ View Live Environmental Metrics for {location_name}", expanded=False):
             st.caption(f"🗺️ Jurisdiction Detected: {detected_state} ({agency_name})")
             st.markdown(display_summary)
+            st.caption(f"🌊 Estimated Water Clarity: **{clarity_estimate}**")
             col1, col2 = st.columns(2)
             with col1:
                 st.metric(label="Air Temp Estimation", value=f"{current['temperature_2m']}°F")
@@ -166,7 +199,7 @@ if lat and lon:
                 'barometric_pressure': trend, 
                 'cloud_cover': cloud_word,
                 'wind_speed': f"{current['wind_speed_10m']} mph",
-                'water_clarity': "Dynamic check based on system rules"
+                'water_clarity': clarity_estimate # Passes real computed environmental clarity straight to AI
             }
             
             with st.spinner("🤖 Consulting AI Specialists..."):
