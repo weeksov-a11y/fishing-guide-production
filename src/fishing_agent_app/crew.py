@@ -2,7 +2,7 @@ from crewai import Agent, Crew, Process, Task, LLM
 from crewai.project import CrewBase, agent, crew, task
 import os
 import streamlit as st
-import time  # 💡 Added for the rate limit breathing room
+import time  # Handles the rate limit pacing
 
 if "GROQ_API_KEY" in st.secrets:
     os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
@@ -64,8 +64,8 @@ class FishingAgentApp():
 
     @task
     def check_regulations_task(self) -> Task:
-        # 💡 Force a quick pause before the compliance officer calls Groq to clear the TPM rate limit window
-        time.sleep(2) 
+        # 💡 Bumping to 4 seconds to guarantee the rolling token count cools down
+        time.sleep(4) 
         return Task(
             config=self.tasks_config['check_regulations_task'],
             agent=self.wdfw_compliance_officer()
@@ -73,8 +73,8 @@ class FishingAgentApp():
 
     @task
     def prescribe_lures_task(self) -> Task:
-        # 💡 Force a quick pause before the lure specialist calls Groq to clear the TPM rate limit window
-        time.sleep(2)
+        # 💡 Bumping to 4 seconds to keep the final output from tripping the limit
+        time.sleep(4)
         return Task(
             config=self.tasks_config['prescribe_lures_task'],
             agent=self.lure_specialist()
