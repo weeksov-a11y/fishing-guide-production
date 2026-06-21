@@ -9,8 +9,9 @@ from streamlit_js_eval import streamlit_js_eval
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 # Securely fetch the key from Streamlit's private backend cloud settings
-if "GROQ_API_KEY" in st.secrets:
-    os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+if "GEMINI_API_KEY" in st.secrets:
+    os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
+
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
@@ -61,6 +62,7 @@ routing_mode = st.radio(
 
 lat, lon, location_name = None, None, ""
 water_context = ""
+display_summary = "" # 💡 Added a clean summary string for the user layout
 
 if routing_mode == "🛰️ Use My Mobile GPS Coordinates":
     gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps_click')
@@ -69,18 +71,22 @@ if routing_mode == "🛰️ Use My Mobile GPS Coordinates":
         lon = gps_location['coords']['longitude']
         location_name = f"GPS: ({lat:.4f}, {lon:.4f})"
         water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f}"
+        display_summary = "🎯 Locked to Live Satellite GPS Location"
         st.success(f"🔒 Mobile Satellite Link Active: {location_name}")
     else:
         st.info("Awaiting satellite lock... Ensure browser permissions are enabled.")
         lat, lon, location_name = 47.2529, -122.4443, "Tacoma, WA"
         water_context = f"Local bodies of water near Tacoma, WA"
+        display_summary = "📍 Region: Tacoma, WA (GPS Awaiting Lock)"
 
 elif routing_mode == "✍️ Enter a Specific Water Body By Name":
     user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="American Lake")
     manual_city = st.text_input("📍 City/State closest to this water (for weather tracking):", value="Tacoma, WA")
     
-    # 🎯 STALKER-MODE DIRECTIVE: We explicitly command the agent to drop all auto-suggestions here
+    # Keep the strict instructions hidden here in the backend context variable...
     water_context = f"the specific body of water named '{user_water}'. Do NOT suggest any other lakes; only provide specific regulations, hot spots, and rigging methods exclusively for '{user_water}'"
+    # ...but make a super clean sentence for the app UI display!
+    display_summary = f"🗺️ Target Water Body: **{user_water}**"
     location_name = manual_city if manual_city.strip() else "Tacoma, WA"
 
 else: # 🔍 Suggest Local Hotspots Mode
@@ -89,6 +95,7 @@ else: # 🔍 Suggest Local Hotspots Mode
         manual_city = "Tacoma, WA"
     location_name = manual_city
     water_context = f"Top highly-rated local {env_choice} spots near {location_name} specifically known for holding {target_fish}"
+    display_summary = f"🔍 Auto-Scouting Local {env_choice} Hotspots near {location_name}"
 
 # Geocoding resolution for weather processing
 if location_name and not lat:
@@ -144,7 +151,7 @@ if lat and lon:
 
         with st.expander(f"🌦️ View Live Environmental Metrics for {location_name}", expanded=False):
             st.caption(f"🗺️ Jurisdiction Detected: {detected_state} ({agency_name})")
-            st.caption(f"📍 Target Framework Routing: {water_context}")
+            st.markdown(display_summary) # 💡 Replaced the ugly routing prompt with our clean display text!
             col1, col2 = st.columns(2)
             with col1:
                 st.metric(label="Air Temp Estimation", value=f"{current['temperature_2m']}°F")
@@ -157,7 +164,7 @@ if lat and lon:
         if execute_crew:
             inputs = {
                 'target_fish': target_fish,
-                'environment': water_context,  # 💡 Injected clean strict context variable
+                'environment': water_context,  
                 'current_state': detected_state,
                 'water_temp': f"{current['temperature_2m']}°F",  
                 'barometric_pressure': trend, 
