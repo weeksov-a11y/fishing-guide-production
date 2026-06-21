@@ -53,7 +53,6 @@ st.info(f"🎯 Strategy Target: **{target_fish}** ({env_choice})")
 # 📡 STEP 3: LOCATION SYSTEM
 st.subheader("📡 Step 3: Destination Routing Mode")
 
-# Clean 3-way mobile selector for destination routing
 routing_mode = st.radio(
     "How do you want to set your fishing location?",
     options=["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name", "🛰️ Use My Mobile GPS Coordinates"],
@@ -69,20 +68,19 @@ if routing_mode == "🛰️ Use My Mobile GPS Coordinates":
         lat = gps_location['coords']['latitude']
         lon = gps_location['coords']['longitude']
         location_name = f"GPS: ({lat:.4f}, {lon:.4f})"
-        water_context = f"the water body matching GPS coordinates {lat:.4f}, {lon:.4f}"
+        water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f}"
         st.success(f"🔒 Mobile Satellite Link Active: {location_name}")
     else:
         st.info("Awaiting satellite lock... Ensure browser permissions are enabled.")
-        # Fallback if GPS fails to connect immediately
         lat, lon, location_name = 47.2529, -122.4443, "Tacoma, WA"
         water_context = f"Local bodies of water near Tacoma, WA"
 
 elif routing_mode == "✍️ Enter a Specific Water Body By Name":
-    # 🌟 NEW: Let the user type in their exact destination lake, river, or marine area
     user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="American Lake")
     manual_city = st.text_input("📍 City/State closest to this water (for weather tracking):", value="Tacoma, WA")
     
-    water_context = f"the specific water body named '{user_water}'"
+    # 🎯 STALKER-MODE DIRECTIVE: We explicitly command the agent to drop all auto-suggestions here
+    water_context = f"the specific body of water named '{user_water}'. Do NOT suggest any other lakes; only provide specific regulations, hot spots, and rigging methods exclusively for '{user_water}'"
     location_name = manual_city if manual_city.strip() else "Tacoma, WA"
 
 else: # 🔍 Suggest Local Hotspots Mode
@@ -92,7 +90,7 @@ else: # 🔍 Suggest Local Hotspots Mode
     location_name = manual_city
     water_context = f"Top highly-rated local {env_choice} spots near {location_name} specifically known for holding {target_fish}"
 
-# Geocoding resolution for weather processing (runs behind the scenes for custom or manual inputs)
+# Geocoding resolution for weather processing
 if location_name and not lat:
     try:
         clean_city = location_name.replace(".", "").split(",")[0].strip()
@@ -159,7 +157,7 @@ if lat and lon:
         if execute_crew:
             inputs = {
                 'target_fish': target_fish,
-                'environment': f"{env_choice} at {water_context}",  
+                'environment': water_context,  # 💡 Injected clean strict context variable
                 'current_state': detected_state,
                 'water_temp': f"{current['temperature_2m']}°F",  
                 'barometric_pressure': trend, 
