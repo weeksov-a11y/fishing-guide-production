@@ -31,9 +31,9 @@ st.set_page_config(page_title="PNW Mobile Fishing Crew", page_icon=logo_path, la
 # 🎣 Your main heading stays right here
 st.title("🎣 Mobile Fishing Advisor")
 
-# 📱 Mobile Home-Screen Icon Overwrite (Modern st.html version)
-app_base_url = "https://fishing-guide-production.streamlit.app"
-st.logo(logo_path) 
+# 📱 Mobile Home-Screen Icon Overwrite (Updated to match your fresh URL!)
+app_base_url = "https://fishing-guide.streamlit.app"
+st.logo(logo_path)
 
 st.html(
     f"""
