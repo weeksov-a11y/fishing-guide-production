@@ -79,8 +79,6 @@ st.html(
         }
     </script>
     """
-)
-
 if "scouted_lakes_dict" not in st.session_state:
     st.session_state.scouted_lakes_dict = {
         "Freshwater": ["Spanaway Lake", "American Lake", "Lake Kapowsin"],
