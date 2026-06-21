@@ -84,9 +84,10 @@ elif routing_mode == "✍️ Enter a Specific Water Body By Name":
     user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Lake Kapowsin")
     manual_city = st.text_input("📍 City/State closest to this water (for weather tracking):", value="Tacoma, WA")
     
-    # 🌟 FUZZY AUTO-CORRECT PLUMBING INTERFACE
-    # We run the typed value against OpenStreetMap to get the official structural dictionary name
     corrected_lake_name = user_water.strip()
+    resolved_via_osm = False
+    
+    # Try Nominatim first for structural coordinates
     try:
         encoded_search = urllib.parse.quote(f"{user_water.strip()} {manual_city}")
         headers = {'User-Agent': 'PNWFishingAdvisorApp/1.0'}
@@ -96,13 +97,27 @@ elif routing_mode == "✍️ Enter a Specific Water Body By Name":
             match = search_res[0]
             lat = float(match["lat"])
             lon = float(match["lon"])
-            # Isolate the verified structural name from mapping results (e.g., "Lake Kapowsin")
             raw_display = match["display_name"].split(",")[0].strip()
-            if "lake" in raw_display.lower() or "river" in raw_display.lower() or "reservoir" in raw_display.lower():
+            if any(w in raw_display.lower() for w in ["lake", "river", "reservoir", "pond", "creek", "marine"]):
                 corrected_lake_name = raw_display
-
+                resolved_via_osm = True
     except Exception:
         pass
+
+    # 🌟 NEW INTERACTIVE UPGRADE: AI SPELLING GUARDRAIL AGENT
+    # If Nominatim strikes out or misses the structural context, Gemini steps in to correct the user's typo!
+    if not resolved_via_osm:
+        with st.spinner("🧠 AI Guardrail auto-correcting water body spelling..."):
+            correction_prompt = f"""You are an expert Pacific Northwest fishing location coordinate coordinator. 
+            The user typed this fishing location name: '{user_water}' near '{manual_city}'. It contains spelling errors or layout typos.
+            Based on your knowledge of Washington (WDFW) and Oregon (ODFW) waters, what is the exact, correct official name of this lake, river, or Marine Area?
+            Output ONLY the corrected name (e.g., 'Lake Kapowsin' or 'American Lake'). Do not include any punctuation, explanations, or extra words."""
+            try:
+                ai_correction = gemini_scout_model.call(messages=[{"role": "user", "content": correction_prompt}])
+                corrected_lake_name = str(ai_correction).strip().replace("'", "").replace('"', '')
+                st.caption(f"✨ AI Auto-Corrected typo to: **{corrected_lake_name}**")
+            except Exception:
+                pass
 
     active_water_body = corrected_lake_name
     water_context = f"""the specific single body of water named {active_water_body}. You MUST completely ignore alternative recommendations and list rules/gear exclusively for {active_water_body}."""
@@ -183,8 +198,7 @@ if lat and lon:
             st.caption(f"🗺️ Jurisdiction: {detected_state} ({agency_name})")
             st.markdown(display_summary)
             
-            # 🛠️ ADVANCED DYNAMIC LINK CLEANSING BROKER
-            # Formats WDFW links dynamically to accommodate standard variations like 'lake-kapowsin'
+            # ADVANCED DYNAMIC LINK CLEANSING BROKER
             cleaned_name_str = active_water_body.strip().lower()
             if "lake" in cleaned_name_str:
                 cleaned_name_str = cleaned_name_str.replace("lake", "").strip()
