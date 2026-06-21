@@ -31,23 +31,52 @@ st.set_page_config(page_title="PNW Mobile Fishing Crew", page_icon=logo_path, la
 # 🎣 Your main heading stays right here
 st.title("🎣 Mobile Fishing Advisor")
 
-# 📱 Mobile Home-Screen Icon Overwrite (Updated to match your fresh URL!)
+# 📱 Mobile Home-Screen Icon & PWA Manifest Overwrite
 app_base_url = "https://fishing-guide.streamlit.app"
-st.logo(logo_path)
+st.logo(logo_path) 
 
 st.html(
     f"""
     <script>
-        var link = window.parent.document.createElement('link');
-        link.rel = 'apple-touch-icon';
-        link.href = '{app_base_url}/~/+/src/fishing_agent_app/app_icon.png';
-        window.parent.document.getElementsByTagName('head')[0].appendChild(link);
+        // Force standard mobile favicon and apple-touch links
+        var tags = [
+            {{ rel: 'apple-touch-icon', href: '{app_base_url}/~/+/src/fishing_agent_app/app_icon.png' }},
+            {{ rel: 'icon', type: 'image/png', href: '{app_base_url}/~/+/src/fishing_agent_app/app_icon.png' }},
+            {{ rel: 'shortcut icon', href: '{app_base_url}/~/+/src/fishing_agent_app/app_icon.png' }}
+        ];
         
-        var iconLink = window.parent.document.createElement('link');
-        iconLink.rel = 'icon';
-        iconLink.type = 'image/png';
-        iconLink.href = '{app_base_url}/~/+/src/fishing_agent_app/app_icon.png';
-        window.parent.document.getElementsByTagName('head')[0].appendChild(iconLink);
+        tags.forEach(function(t) {{
+            var link = window.parent.document.createElement('link');
+            link.rel = t.rel;
+            if (t.type) link.type = t.type;
+            link.href = t.href;
+            window.parent.document.getElementsByTagName('head')[0].appendChild(link);
+        }});
+
+        // Override the modern Web Manifest file that Android Chrome reads
+        var manifestLink = window.parent.document.querySelector('link[rel="manifest"]');
+        if (manifestLink) {{
+            fetch(manifestLink.href)
+                .then(response => response.json())
+                .then(data => {{
+                    data.icons = [
+                        {{
+                            "src": "{app_base_url}/~/+/src/fishing_agent_app/app_icon.png",
+                            "sizes": "192x192",
+                            "type": "image/png",
+                            "purpose": "any maskable"
+                        }},
+                        {{
+                            "src": "{app_base_url}/~/+/src/fishing_agent_app/app_icon.png",
+                            "sizes": "512x512",
+                            "type": "image/png",
+                            "purpose": "any maskable"
+                        }}
+                    ];
+                    var blob = new Blob([JSON.stringify(data)], {{type: 'application/json'}});
+                    manifestLink.href = URL.createObjectURL(blob);
+                }});
+        }
     </script>
     """
 )
