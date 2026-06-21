@@ -100,15 +100,11 @@ else: # 🔍 Suggest Local Hotspots Mode
     
     if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
         with st.spinner("🤖 Mapping local hotspots..."):
-            # 🎯 DIRECT MODEL CALL: Bypasses the crew sequential tasks completely for clean execution
             prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, or marine zones located near {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, explanations, or numbers."
             try:
                 scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
                 raw_text = str(scout_res).strip()
-                
-                # Split and clean the list items seamlessly
                 cleaned_list = [line.replace("*","").replace("-","").strip() for line in raw_text.split("\n") if line.strip()]
-                
                 if len(cleaned_list) >= 1:
                     st.session_state.scouted_lakes_dict[env_choice] = cleaned_list[:3]
                     st.success("🎯 Dropdown choices updated below!")
@@ -159,7 +155,7 @@ if lat and lon:
 
         # Water Clarity Engine
         recent_rain = sum(weather['hourly'].get('precipitation', [0.0])[-12:])
-        clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained" if recent_rain > 0.15 else "Clear"
+        clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility"
 
         # Mathematical Water Surface Temperature Estimation Model
         past_3_days_air_temps = weather['hourly']['temperature_2m'][:72]
@@ -179,13 +175,17 @@ if lat and lon:
                 
             st.link_button("🗺️ Open Official State Depth Map & Fish Stocking Records", map_link, use_container_width=True)
             
+            # 🛠️ MOBILE UX LAYOUT OVERHAUL: Full width layout prevents box clipping entirely
             col1, col2 = st.columns(2)
             with col1:
-                st.metric(label="Estimated Surface Water Temp", value=f"{estimated_water_temp:.1f}°F")
-                st.metric(label="Barometric Trend", value=trend, delta=f"{diff:.2f} hPa")
+                st.metric(label="Est. Water Temp", value=f"{estimated_water_temp:.1f}°F")
             with col2:
-                st.metric(label="Calculated Water Clarity", value=clarity_estimate)
                 st.metric(label="Wind Velocity", value=f"{current['wind_speed_10m']} mph")
+                
+            st.markdown("---")
+            st.markdown(f"🌊 **Calculated Water Clarity:** {clarity_estimate}")
+            st.markdown(f"📈 **Barometric Pressure Trend:** {trend} ({diff:+.2f} hPa)")
+            st.markdown(f"☁️ **Sky Conditions:** {cloud_word}")
 
         # 🤖 ENGINE EXECUTION INTERFACE
         if execute_crew:
