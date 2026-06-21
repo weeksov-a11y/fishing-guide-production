@@ -1,24 +1,27 @@
 analyze_weather_task:
   description: >
-    Review the current weather, wind, and atmospheric trends for {target_fish} in a {environment} environment at the specified coordinates.
+    Review the current weather, wind, and atmospheric trends for {target_fish} in a {environment} context.
   expected_output: >
     A concise summary of how these specific conditions will impact the target species' activity level and depth placement.
 
 check_regulations_task:
   description: >
-    Review the fishing rules for taking {target_fish} in the state of {current_state}, focusing on standard rules for the area or specific body of water.
-    Identify gear restrictions (e.g., barbless hooks, bait bans, artificial lures only) and daily bag/retention limits.
+    Analyze the target framework parameter: {environment}. 
+    Based on this location and the {current_state}, you MUST research and identify 2 to 3 actual, real-world named bodies of water (e.g., specific lakes, rivers, or exact Marine Areas) near that location that are highly-rated for catching {target_fish}.
+    Then, look up the specific fishing regulations for taking {target_fish} in those specific waters, focusing on gear restrictions (e.g., barbless hooks, bait bans, hook limits) and daily bag/retention limits.
   expected_output: >
-    A bulleted list of current legal hook types, bait restrictions, and daily limits.
+    A detailed breakdown containing:
+    1. A section explicitly naming 2-3 recommended local fishing spots (lakes/marine areas) by name with a brief reason why they fit the target.
+    2. A bulleted list of current legal hook types, bait restrictions, and daily limits for those specific waters.
 
 prescribe_lures_task:
   description: >
-    Using the behavioral analysis and the compliance guardrails generated in the previous tasks, prescribe exactly 3 tackle setups optimized for catching {target_fish} in this {environment} environment.
+    Using the specific local spots, behavioral analysis, and compliance guardrails generated in the previous tasks, prescribe exactly 3 tackle setups optimized for catching {target_fish} in those recommended waters.
   expected_output: >
     The output MUST be formatted into two distinct sections:
     
-    ### 🚨 Regional Legal Compliance Guardrails & Environment
-    [Include a detailed section here showing the legal rules, hook requirements, bait bans, and daily catch limits provided by the compliance officer for this species and state].
+    ### 🚨 Regional Legal Compliance Guardrails & Location Suggestions
+    [Include the compliance officer's specific named lake/marine area recommendations, followed by the legal rules, hook requirements, bait bans, and daily catch limits for those spots].
     
     ### 🎣 Tactical Strategy Plan
     [Provide exactly 3 highly specific configurations, including Lure type, Color Palette, Rigging, Target Depth, and Presentation Tips matching these conditions].
