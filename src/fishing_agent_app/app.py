@@ -62,7 +62,7 @@ routing_mode = st.radio(
 
 lat, lon, location_name = None, None, ""
 water_context = ""
-display_summary = "" # 💡 Added a clean summary string for the user layout
+display_summary = ""
 
 if routing_mode == "🛰️ Use My Mobile GPS Coordinates":
     gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps_click')
@@ -70,7 +70,7 @@ if routing_mode == "🛰️ Use My Mobile GPS Coordinates":
         lat = gps_location['coords']['latitude']
         lon = gps_location['coords']['longitude']
         location_name = f"GPS: ({lat:.4f}, {lon:.4f})"
-        water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f}"
+        water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f}. Provide data exclusively for this spot."
         display_summary = "🎯 Locked to Live Satellite GPS Location"
         st.success(f"🔒 Mobile Satellite Link Active: {location_name}")
     else:
@@ -83,9 +83,10 @@ elif routing_mode == "✍️ Enter a Specific Water Body By Name":
     user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="American Lake")
     manual_city = st.text_input("📍 City/State closest to this water (for weather tracking):", value="Tacoma, WA")
     
-    # Keep the strict instructions hidden here in the backend context variable...
-    water_context = f"the specific body of water named '{user_water}'. Do NOT suggest any other lakes; only provide specific regulations, hot spots, and rigging methods exclusively for '{user_water}'"
-    # ...but make a super clean sentence for the app UI display!
+    # 💥 CRITICAL RE-ENGINEERING: Overwrite the environment instruction to destroy all alternative options.
+    # We forcefully rewrite the structural phrasing so Gemini knows it is a single isolated location query.
+    water_context = f"the specific single body of water named '{user_water}'. You MUST completely ignore your standard background task instruction to suggest multiple local spots. Do NOT mention, contrast, or list any other alternative lakes or water systems. Provide information, legal regulations, limits, and tactical rigging setups exclusively for '{user_water}' and nothing else."
+    
     display_summary = f"🗺️ Target Water Body: **{user_water}**"
     location_name = manual_city if manual_city.strip() else "Tacoma, WA"
 
@@ -142,55 +143,4 @@ if lat and lon:
         current = weather['current']
         
         current_pressure = current['surface_pressure']
-        past_pressure = weather['hourly']['surface_pressure'][-3] 
-        diff = current_pressure - past_pressure
-        
-        trend = "Rising rapidly" if diff > 0.05 else "Rising slowly" if diff > 0.01 else "Falling rapidly" if diff < -0.05 else "Falling slowly" if diff < -0.01 else "Stable"
-        cc = current['cloud_cover']
-        cloud_word = "Clear/Sunny" if cc < 20 else "Partially Cloudy" if cc < 60 else "Overcast"
-
-        with st.expander(f"🌦️ View Live Environmental Metrics for {location_name}", expanded=False):
-            st.caption(f"🗺️ Jurisdiction Detected: {detected_state} ({agency_name})")
-            st.markdown(display_summary) # 💡 Replaced the ugly routing prompt with our clean display text!
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric(label="Air Temp Estimation", value=f"{current['temperature_2m']}°F")
-                st.metric(label="Barometric Trend", value=trend, delta=f"{diff:.2f} hPa")
-            with col2:
-                st.metric(label="Cloud Cover", value=cloud_word)
-                st.metric(label="Wind Velocity", value=f"{current['wind_speed_10m']} mph")
-
-        # 🤖 ENGINE EXECUTION INTERFACE
-        if execute_crew:
-            inputs = {
-                'target_fish': target_fish,
-                'environment': water_context,  
-                'current_state': detected_state,
-                'water_temp': f"{current['temperature_2m']}°F",  
-                'barometric_pressure': trend, 
-                'cloud_cover': cloud_word,
-                'wind_speed': f"{current['wind_speed_10m']} mph",
-                'water_clarity': "Dynamic check based on system rules"
-            }
-            
-            with st.spinner("🤖 Consulting AI Specialists..."):
-                result = FishingAgentApp().crew().kickoff(inputs=inputs)
-                raw_output = result.raw if hasattr(result, 'raw') else str(result)
-                st.success("🎯 Strategy Formulated!")
-                
-                if "### 🎣 Tactical Strategy Plan" in raw_output:
-                    parts = raw_output.split("### 🎣 Tactical Strategy Plan")
-                    compliance_section = parts[0].replace("### 🚨 Regional Legal Compliance Guardrails & Location Suggestions", "").strip()
-                    tactical_section = parts[1].strip()
-                    
-                    with st.expander(f"🚨 {agency_name} Legal Compliance Guardrails & Locations", expanded=True):
-                        st.markdown(compliance_section)
-                        
-                    with st.expander("🎣 Tactical Strategy Plan", expanded=True):
-                        st.markdown(tactical_section)
-                else:
-                    with st.expander("📋 View Generated Strategy Details", expanded=True):
-                        st.markdown(raw_output)
-
-    except Exception as err:
-        st.error(f"Failed to compile weather data stream: {err}")
+        past_pressure = weather['hourly']
