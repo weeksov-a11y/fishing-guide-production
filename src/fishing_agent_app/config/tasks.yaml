@@ -7,21 +7,21 @@ analyze_weather_task:
 check_regulations_task:
   description: >
     Analyze the target framework parameter: {environment}. 
-    Based on this location and the {current_state}, you MUST research and identify 2 to 3 actual, real-world named bodies of water (e.g., specific lakes, rivers, or exact Marine Areas) near that location that are highly-rated for catching {target_fish}.
-    Then, look up the specific fishing regulations for taking {target_fish} in those specific waters, focusing on gear restrictions (e.g., barbless hooks, bait bans, hook limits) and daily bag/retention limits.
+    Review the specific fishing regulations for taking {target_fish} within the state of {current_state} matching this exact destination context.
+    Identify gear restrictions (e.g., barbless hooks, bait bans, hook limits) and daily bag/retention limits.
   expected_output: >
-    A detailed breakdown containing:
-    1. A section explicitly naming 2-3 recommended local fishing spots (lakes/marine areas) by name with a brief reason why they fit the target.
-    2. A bulleted list of current legal hook types, bait restrictions, and daily limits for those specific waters.
+    A detailed legal breakdown containing:
+    1. A Location Header explicitly confirming the target destination(s) analyzed (either the single specific water body requested, or the list of recommended local hotspots if auto-suggest mode was used).
+    2. A clear bulleted list of current legal hook types, bait restrictions, and daily catch/size limits matching those exact waters.
 
 prescribe_lures_task:
   description: >
-    Using the specific local spots, behavioral analysis, and compliance guardrails generated in the previous tasks, prescribe exactly 3 tackle setups optimized for catching {target_fish} in those recommended waters.
+    Using the specific targets, behavioral analysis, and compliance guardrails generated in the previous tasks, prescribe exactly 3 tackle setups optimized for catching {target_fish} in those targeted waters.
   expected_output: >
     The output MUST be formatted into two distinct sections:
     
-    ### 🚨 Regional Legal Compliance Guardrails & Location Suggestions
-    [Include the compliance officer's specific named lake/marine area recommendations, followed by the legal rules, hook requirements, bait bans, and daily catch limits for those spots].
+    ### 🚨 Regional Legal Compliance Guardrails & Location Data
+    [Include the compliance officer's specific location confirmation or recommendations, followed by the legal rules, hook requirements, bait bans, and daily catch limits for those exact spots].
     
     ### 🎣 Tactical Strategy Plan
     [Provide exactly 3 highly specific configurations, including Lure type, Color Palette, Rigging, Target Depth, and Presentation Tips matching these conditions].
