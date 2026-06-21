@@ -2,16 +2,17 @@ from crewai import Agent, Crew, Process, Task, LLM
 from crewai.project import CrewBase, agent, crew, task
 import os
 import streamlit as st
-import time  # Handles the rate limit pacing
 
-if "GROQ_API_KEY" in st.secrets:
-    os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+# Check for keys in Streamlit secrets
+if "GEMINI_API_KEY" in st.secrets:
+    os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
 
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
-groq_llm = LLM(
-    model="groq/llama-3.1-8b-instant",
+# 🧠 Swapping out Groq for the massive free-tier limits of Gemini 2.5 Flash
+gemini_llm = LLM(
+    model="gemini/gemini-2.5-flash",
     temperature=0.7
 )
 
@@ -26,7 +27,7 @@ class FishingAgentApp():
     def weather_analyst(self) -> Agent:
         tgt_agent = Agent(
             config=self.agents_config['weather_analyst'],
-            llm=groq_llm,
+            llm=gemini_llm,
             verbose=True
         )
         if hasattr(tgt_agent, 'cache_prompt'):
@@ -37,7 +38,7 @@ class FishingAgentApp():
     def wdfw_compliance_officer(self) -> Agent:
         tgt_agent = Agent(
             config=self.agents_config['wdfw_compliance_officer'],
-            llm=groq_llm,
+            llm=gemini_llm,
             verbose=True
         )
         if hasattr(tgt_agent, 'cache_prompt'):
@@ -48,7 +49,7 @@ class FishingAgentApp():
     def lure_specialist(self) -> Agent:
         tgt_agent = Agent(
             config=self.agents_config['lure_specialist'],
-            llm=groq_llm,
+            llm=gemini_llm,
             verbose=True
         )
         if hasattr(tgt_agent, 'cache_prompt'):
@@ -64,8 +65,6 @@ class FishingAgentApp():
 
     @task
     def check_regulations_task(self) -> Task:
-        # 💡 Bumping to 4 seconds to guarantee the rolling token count cools down
-        time.sleep(4) 
         return Task(
             config=self.tasks_config['check_regulations_task'],
             agent=self.wdfw_compliance_officer()
@@ -73,8 +72,6 @@ class FishingAgentApp():
 
     @task
     def prescribe_lures_task(self) -> Task:
-        # 💡 Bumping to 4 seconds to keep the final output from tripping the limit
-        time.sleep(4)
         return Task(
             config=self.tasks_config['prescribe_lures_task'],
             agent=self.lure_specialist()
