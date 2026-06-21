@@ -191,28 +191,33 @@ if lat and lon:
         mean_air_temp = sum(past_3_days_air_temps) / len(past_3_days_air_temps) if past_3_days_air_temps else current['temperature_2m']
         estimated_water_temp = (0.7 * mean_air_temp) + (0.3 * current['temperature_2m'])
 
-        # 📡 🌟 NEW UPGRADE: LIVE USGS STREAMFLOW & NOAA TIDES INTEGRATION WIRE 
+        # 📡 LIVE TELEMETRY CORE GATEWAY BLOCK
         live_gauge_data = "Station data unavailable for static land locations."
         
         if env_choice == "Freshwater":
-            # Direct dynamic lookups to the USGS Instantaneous Values API using a regional radius bounding box
-            usgs_url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&latitude={lat:.4f}&longitude={lon:.4f}&dist=15&parameterCd=00060,00065&siteStatus=all"
+            # Compute a clean bounding box coordinate perimeter for real USGS stations
+            west_lon = lon - 0.25
+            south_lat = lat - 0.25
+            east_lon = lon + 0.25
+            north_lat = lat + 0.25
+            
+            usgs_url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&bBox={west_lon:.4f},{south_lat:.4f},{east_lon:.4f},{north_lat:.4f}&parameterCd=00060,00065&siteStatus=all"
             try:
                 usgs_res = requests.get(usgs_url, timeout=5).json()
                 time_series = usgs_res.get('value', {}).get('timeSeries', [])
                 if time_series:
                     site_name = time_series[0]['sourceInfo']['siteName']
                     val = time_series[0]['values'][0]['value'][0]['value']
-                    unit = "CFS (Flow Rate)" if "00060" in time_series[0]['variable']['variableCode'][0]['value'] else "ft (Gauge Height)"
+                    p_code = time_series[0]['variable']['variableCode'][0]['value']
+                    unit = "CFS (Flow Rate)" if "00060" in p_code else "ft (Gauge Height)"
                     live_gauge_data = f"🌊 Nearest USGS Live Gauge: {site_name} | Current Reading: {val} {unit}"
                 else:
-                    live_gauge_data = "🌊 USGS Streamflow: No active river flow gauges detected within a 15-mile radius of target coordinates."
+                    live_gauge_data = "🌊 USGS Streamflow: No active river flow gauges detected within this immediate zone."
             except Exception:
                 live_gauge_data = "🌊 USGS Streamflow: Station array loop offline or timed out."
         else:
-            # Direct dynamic lookups to the NOAA Tides & Currents API
-            # Automatically pulls the closest water level station and maps high/low trends
-            noaa_url = f"https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?date=latest&range=24&product=water_level&datum=MLLW&units=english&time_zone=lst_ldt&format=json&application=PNWFishingCrew&station=9446484" # Defaulting to Tacoma Commencement Bay Station if marine area maps aren't localized
+            # Direct dynamic lookups to the NOAA Tides API
+            noaa_url = f"https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?date=latest&range=24&product=water_level&datum=MLLW&units=english&time_zone=lst_ldt&format=json&application=PNWFishingCrew&station=9446484"
             try:
                 noaa_res = requests.get(noaa_url, timeout=5).json()
                 if "data" in noaa_res:
@@ -254,7 +259,7 @@ if lat and lon:
                 st.metric(label="Wind Velocity", value=f"{current['wind_speed_10m']} mph")
                 
             st.markdown("---")
-            st.markdown(f"📡 **Live Hydrological Telemetry:** {live_gauge_data}") # 💡 Live streaming row added natively to the UI layout block!
+            st.markdown(f"📡 **Live Hydrological Telemetry:** {live_gauge_data}")
             st.markdown(f"🌊 **Calculated Water Clarity:** {clarity_estimate}")
             st.markdown(f"📈 **Barometric Pressure Trend:** {trend} ({diff:+.2f} hPa)")
             st.markdown(f"☁️ **Sky Conditions:** {cloud_word}")
@@ -269,7 +274,7 @@ if lat and lon:
                 'barometric_pressure': trend, 
                 'cloud_cover': cloud_word,
                 'wind_speed': f"{current['wind_speed_10m']} mph",
-                'water_clarity': f"{clarity_estimate}. Additional live field gauge data shows: {live_gauge_data}" # Injects telemetry data directly into the AI pipeline context
+                'water_clarity': f"{clarity_estimate}. Additional live field gauge data shows: {live_gauge_data}"
             }
             with st.spinner("🤖 Consulting AI Specialists..."):
                 result = FishingAgentApp().crew().kickoff(inputs=inputs)
