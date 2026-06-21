@@ -104,20 +104,31 @@ else: # 🔍 Suggest Local Hotspots Mode
     location_name = manual_city
     
     st.markdown("### 🛰️ Fast AI Scout Engine")
+    
     if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
-        with st.spinner("🤖 Mapping local hotspots..."):
+        with st.spinner(f"🤖 Mapping local hotspots near {location_name}..."):
             prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, or marine zones located near {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, explanations, or numbers."
             try:
                 scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
                 raw_text = str(scout_res).strip()
                 cleaned_list = [line.replace("*","").replace("-","").strip() for line in raw_text.split("\n") if line.strip()]
+                
                 if len(cleaned_list) >= 1:
                     st.session_state.scouted_lakes_dict[env_choice] = cleaned_list[:3]
-                    st.success("🎯 Dropdown choices updated below!")
-            except Exception:
-                pass
+                    st.success("🎯 Hotspots updated!")
+                    st.rerun()  # 🔄 Force layout execution redraw
+                else:
+                    st.error("🤖 AI returned an empty list. Try clicking again.")
+            except Exception as e:
+                st.error(f"⚠️ Scouting engine timeout: {e}")
 
-    dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, ["American Lake"])
+    # Dynamic default routing triggers even if connection drops
+    if "oregon" in location_name.lower() or "or" in location_name.lower():
+        default_spots = ["Hagg Lake", "Blue Lake", "Willamette River Sector"] if env_choice == "Freshwater" else ["Marine Area 1 (Astoria)", "Columbia River Estuary", "Newport Pier"]
+    else:
+        default_spots = ["Spanaway Lake", "American Lake", "Lake Kapowsin"] if env_choice == "Freshwater" else ["Marine Area 11 (Tacoma)", "Marine Area 13 (Olympia)", "Point Defiance Pier"]
+
+    dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, default_spots)
     selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options)
     active_water_body = selected_suggested
 
