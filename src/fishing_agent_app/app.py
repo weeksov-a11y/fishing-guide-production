@@ -37,7 +37,7 @@ env_choice = st.segmented_control(
     default="Freshwater"
 )
 
-# 🐟 STEP 2: DYNAMIC SPECIES SELECTION WITH NEW ROSTER ITEMS
+# 🐟 STEP 2: CHOOSE TARGET SPECIES
 st.subheader("🐟 Step 2: Choose Your Target Species")
 
 if env_choice == "Freshwater":
@@ -96,25 +96,26 @@ else:
     except Exception as ge:
         lat, lon, location_name = 47.2529, -122.4443, "Tacoma, Washington"
 
-# 🔀 JURISDICTION & PROXIMITY WATER BROKERAGE LOGIC
+# 🔀 SMART JURISDICTION DETECTION
 if "Oregon" in location_name or "OR" in location_name:
     detected_state = "Oregon"
     agency_name = "ODFW"
-    suggested_spot = "Willamette River / Local Reservoirs" if env_choice == "Freshwater" else "Columbia River Estuary / Pacific Coast"
 else:
     detected_state = "Washington"
     agency_name = "WDFW"
-    # Smart context mapping for home base zones
-    if "Tacoma" in location_name or "Seattle" in location_name:
-        suggested_spot = "Lake Washington / Lake Spanaway" if env_choice == "Freshwater" else "Puget Sound (Marine Area 11 / 10)"
-    else:
-        suggested_spot = "Local County Managed Lakes" if env_choice == "Freshwater" else "Nearest Coastal Marine Access Zone"
 
-# 🚀 UX UPGRADE: THE SUBMIT/GENERATE BUTTON MOVED BEFORE DATA DISPLAYS
+# 🧠 NEW UPGRADE: DYNAMIC HOTSPOT SUGGESTION TOGGLE
+suggest_hotspots = st.toggle("🔍 Suggest local lakes or fishing locations near me", value=True)
+
+water_context = f"Local {env_choice} bodies of water near {location_name}"
+if suggest_hotspots:
+    water_context = f"Top highly-rated local {env_choice} spots near {location_name} specifically known for holding {target_fish}"
+
+# 🚀 STEP 4: RUN ANALYSIS BUTTON
 st.subheader("⚡ Step 4: Run Analysis")
 execute_crew = st.button("🚀 Generate Tactical Strategy Plan", type="primary", use_container_width=True)
 
-# 📋 SHOW LIVE STATS (Tucked inside an expander so it stays clean below the button)
+# 📋 SHOW LIVE STATS BELOW BUTTON
 if lat and lon:
     @st.cache_data(ttl=900)
     def get_weather_data(latitude, longitude):
@@ -135,7 +136,7 @@ if lat and lon:
 
         with st.expander(f"🌦️ View Live Environmental Metrics for {location_name}", expanded=False):
             st.caption(f"🗺️ Jurisdiction Detected: {detected_state} ({agency_name})")
-            st.caption(f"📍 Targeted Water Framework: **{suggested_spot}**")
+            st.caption(f"📍 Target Framework Routing: {water_context}")
             col1, col2 = st.columns(2)
             with col1:
                 st.metric(label="Air Temp Estimation", value=f"{current['temperature_2m']}°F")
@@ -148,13 +149,13 @@ if lat and lon:
         if execute_crew:
             inputs = {
                 'target_fish': target_fish,
-                'environment': f"{env_choice} at {suggested_spot}",  
+                'environment': water_context,  
                 'current_state': detected_state,
                 'water_temp': f"{current['temperature_2m']}°F",  
                 'barometric_pressure': trend, 
                 'cloud_cover': cloud_word,
                 'wind_speed': f"{current['wind_speed_10m']} mph",
-                'water_clarity': "Clear marine water" if env_choice == "Saltwater (Marine)" else "Slightly stained"
+                'water_clarity': "Dynamic check based on system rules"
             }
             
             with st.spinner("🤖 Consulting AI Specialists..."):
@@ -167,7 +168,7 @@ if lat and lon:
                     compliance_section = parts[0].replace("### 🚨 Regional Legal Compliance Guardrails & Environment", "").strip()
                     tactical_section = parts[1].strip()
                     
-                    with st.expander(f"🚨 {agency_name} Legal Compliance Guardrails", expanded=True):
+                    with st.expander(f"🚨 {agency_name} Legal Compliance Guardrails & Location Suggestions", expanded=True):
                         st.markdown(compliance_section)
                         
                     with st.expander("🎣 Tactical Strategy Plan", expanded=True):
