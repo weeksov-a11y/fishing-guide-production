@@ -22,7 +22,7 @@ gemini_scout_model = LLM(
     temperature=0.3
 )
 
-st.set_page_config(page_title="PNW Mobile Fishing Crew", page_icon="🎣", layout="centered")
+app_base_url = "https://your-actual-app-name.streamlit.app"
 st.title("🎣 Mobile Fishing Advisor")
 
 if "scouted_lakes_dict" not in st.session_state:
