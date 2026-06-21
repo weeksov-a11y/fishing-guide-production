@@ -5,7 +5,7 @@ import requests
 import urllib.parse
 from datetime import datetime
 from streamlit_js_eval import streamlit_js_eval
-import streamlit.components.v1 as components  # 👈 Added this missing import!
+import streamlit.components.v1 as components
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -33,7 +33,8 @@ st.set_page_config(page_title="PNW Mobile Fishing Crew", page_icon=logo_path, la
 st.title("🎣 Mobile Fishing Advisor")
 
 # 📱 Mobile Home-Screen Icon Overwrite
-app_base_url = "https://your-actual-app-name.streamlit.app"  # 👈 Remember to put your real live link here!
+# 🫵 CHANGE THIS LINK BELOW TO MATCH YOUR EXACT LIVE URL IF NEEDED!
+app_base_url = "https://fishing-guide-production.streamlit.app"
 st.logo(logo_path) 
 
 components.html(
@@ -224,7 +225,6 @@ if lat and lon:
         live_gauge_data = "Station data unavailable for static land locations."
         
         if env_choice == "Freshwater":
-            # 🗺️ Expanded coordinate square box to widen search boundaries
             west_lon = lon - 0.45
             south_lat = lat - 0.45
             east_lon = lon + 0.45
@@ -235,7 +235,6 @@ if lat and lon:
                 usgs_res = requests.get(usgs_url, timeout=6).json()
                 time_series = usgs_res.get('value', {}).get('timeSeries', [])
                 
-                # 🛡️ DEFENSIVE OBJECT PARSING: Safely unpacks JSON loops step-by-step
                 if time_series and len(time_series) > 0:
                     ts_entry = time_series[0]
                     site_name = ts_entry.get('sourceInfo', {}).get('siteName', 'Unknown Stream')
@@ -250,10 +249,9 @@ if lat and lon:
                         live_gauge_data = f"🌊 Active Station Found ({site_name}) but stream data frame is empty."
                 else:
                     live_gauge_data = "⚠️ Local Hydrology: No active river flow gauges found in this lake zone."
-            except Exception as e:
+            except Exception:
                 live_gauge_data = "⚠️ Local Hydrology: Stream telemetry loop bypassed due to network timeout."
         else:
-            # Direct dynamic lookups to the NOAA Tides API
             noaa_url = f"https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?date=latest&range=24&product=water_level&datum=MLLW&units=english&time_zone=lst_ldt&format=json&application=PNWFishingCrew&station=9446484"
             try:
                 noaa_res = requests.get(noaa_url, timeout=5).json()
@@ -271,7 +269,6 @@ if lat and lon:
             st.caption(f"🗺️ Jurisdiction: {detected_state} ({agency_name})")
             st.markdown(display_summary)
             
-            # ADVANCED DYNAMIC LINK CLEANSING BROKER
             cleaned_name_str = active_water_body.strip().lower()
             if "lake" in cleaned_name_str:
                 cleaned_name_str = cleaned_name_str.replace("lake", "").strip()
