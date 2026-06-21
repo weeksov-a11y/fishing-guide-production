@@ -33,11 +33,11 @@ st.set_page_config(page_title="PNW Mobile Fishing Crew", page_icon=logo_path, la
 st.title("🎣 Mobile Fishing Advisor")
 
 # 📱 Mobile Home-Screen Icon Overwrite
-# 🫵 CHANGE THIS LINK BELOW TO MATCH YOUR EXACT LIVE URL IF NEEDED!
 app_base_url = "https://fishing-guide-production.streamlit.app"
 st.logo(logo_path) 
 
-components.html(
+# Modern 2026 Streamlit HTML Injection to force the phone grid layout
+st.html(
     f"""
     <script>
         var link = window.parent.document.createElement('link');
@@ -51,7 +51,8 @@ components.html(
         iconLink.href = '{app_base_url}/~/+/src/fishing_agent_app/app_icon.png';
         window.parent.document.getElementsByTagName('head')[0].appendChild(iconLink);
     </script>
-    """,
+    """
+)
     height=0,
 )
 
