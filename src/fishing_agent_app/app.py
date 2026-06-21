@@ -14,8 +14,14 @@ if "GEMINI_API_KEY" in st.secrets:
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
-import litellm
+from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
+
+# Initialize the model directly for the fast scout button
+gemini_scout_model = LLM(
+    model="gemini/gemini-2.5-flash",
+    temperature=0.3
+)
 
 st.set_page_config(page_title="PNW Mobile Fishing Crew", page_icon="🎣", layout="centered")
 st.title("🎣 Mobile Fishing Advisor")
@@ -26,8 +32,6 @@ if "scouted_lakes_dict" not in st.session_state:
         "Freshwater": ["Spanaway Lake", "American Lake", "Lake Kapowsin"],
         "Saltwater (Marine)": ["Marine Area 11 (Tacoma)", "Marine Area 13 (Olympia)", "Point Defiance Pier"]
     }
-if "scout_fingerprint" not in st.session_state:
-    st.session_state.scout_fingerprint = ""
 
 # 🌊 STEP 1: SELECT ENVIRONMENT
 st.subheader("🌊 Step 1: Select Your Environment")
@@ -60,9 +64,6 @@ lat, lon, location_name = None, None, ""
 water_context = ""
 display_summary = ""
 active_water_body = ""
-
-# Build a fingerprint to know if the user changed targets
-current_fp = f"{env_choice}-{target_fish}"
 
 if routing_mode == "🛰️ Use My Mobile GPS Coordinates":
     gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps_click')
@@ -99,32 +100,21 @@ else: # 🔍 Suggest Local Hotspots Mode
     
     if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
         with st.spinner("🤖 Mapping local hotspots..."):
-            scout_inputs = {
-                'target_fish': target_fish,
-                'environment': f"Provide a simple comma-separated list of exactly 3 real, specific local named {env_choice} fishing spots/lakes/marine zones near {location_name} known for holding {target_fish}.",
-                'current_state': "PNW Region",
-                'water_temp': "70°F", 'barometric_pressure': "Stable", 'cloud_cover': "Clear", 'wind_speed': "5 mph", 'water_clarity': "Clear"
-            }
+            # 🎯 DIRECT MODEL CALL: Bypasses the crew sequential tasks completely for clean execution
+            prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, or marine zones located near {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, explanations, or numbers."
             try:
-                # Direct mini-execution to extract the raw text choices seamlessly
-                scout_res = FishingAgentApp().crew().kickoff(inputs=scout_inputs)
-                raw_text = str(scout_res)
+                scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
+                raw_text = str(scout_res).strip()
                 
-                # Dynamic parsing fallback logic to safely isolate names
-                cleaned_list = []
-                for line in raw_text.split("\n"):
-                    if any(char.isalpha() for char in line) and "Plan" not in line and "Guardrails" not in line:
-                        item = line.replace("*","").replace("-","").replace("1.","").replace("2.","").replace("3.","").strip()
-                        if len(item) > 3 and len(item) < 40:
-                            cleaned_list.append(item)
+                # Split and clean the list items seamlessly
+                cleaned_list = [line.replace("*","").replace("-","").strip() for line in raw_text.split("\n") if line.strip()]
                 
-                if len(cleaned_list) >= 2:
+                if len(cleaned_list) >= 1:
                     st.session_state.scouted_lakes_dict[env_choice] = cleaned_list[:3]
                     st.success("🎯 Dropdown choices updated below!")
             except Exception as se:
                 st.warning("Using regional baseline index options.")
 
-    # Render choices dynamically based on the update state
     dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, ["American Lake"])
     selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options)
     
@@ -167,11 +157,11 @@ if lat and lon:
         trend = "Rising rapidly" if diff > 0.05 else "Rising slowly" if diff > 0.01 else "Falling rapidly" if diff < -0.05 else "Falling slowly" if diff < -0.01 else "Stable"
         cloud_word = "Clear/Sunny" if current['cloud_cover'] < 20 else "Partially Cloudy" if current['cloud_cover'] < 60 else "Overcast"
 
-        # 🌊 Water Clarity Calculation Engine
+        # Water Clarity Engine
         recent_rain = sum(weather['hourly'].get('precipitation', [0.0])[-12:])
         clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained" if recent_rain > 0.15 else "Clear"
 
-        # 🌡️ Mathematical Water Surface Temperature Estimation Model
+        # Mathematical Water Surface Temperature Estimation Model
         past_3_days_air_temps = weather['hourly']['temperature_2m'][:72]
         mean_air_temp = sum(past_3_days_air_temps) / len(past_3_days_air_temps) if past_3_days_air_temps else current['temperature_2m']
         estimated_water_temp = (0.7 * mean_air_temp) + (0.3 * current['temperature_2m'])
@@ -180,7 +170,7 @@ if lat and lon:
             st.caption(f"🗺️ Jurisdiction: {detected_state} ({agency_name})")
             st.markdown(display_summary)
             
-            # 🗺️ DYNAMIC DEPTH MAP AND RESOURCE BROKER LINKS
+            # Map Linking Configuration
             clean_lake_url = urllib.parse.quote(active_water_body.strip())
             if detected_state == "Washington":
                 map_link = f"https://wdfw.wa.gov/fishing/locations/lowland-lakes/{clean_lake_url.lower().replace('%20', '-')}"
