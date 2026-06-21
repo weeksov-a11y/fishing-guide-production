@@ -17,7 +17,6 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# Initialize the model directly for the fast scout button
 gemini_scout_model = LLM(
     model="gemini/gemini-2.5-flash",
     temperature=0.3
@@ -26,7 +25,6 @@ gemini_scout_model = LLM(
 st.set_page_config(page_title="PNW Mobile Fishing Crew", page_icon="🎣", layout="centered")
 st.title("🎣 Mobile Fishing Advisor")
 
-# 🧠 Dynamic Session State Management
 if "scouted_lakes_dict" not in st.session_state:
     st.session_state.scouted_lakes_dict = {
         "Freshwater": ["Spanaway Lake", "American Lake", "Lake Kapowsin"],
@@ -83,12 +81,32 @@ if routing_mode == "🛰️ Use My Mobile GPS Coordinates":
         display_summary = "📍 Region: Tacoma, WA (GPS Awaiting Lock)"
 
 elif routing_mode == "✍️ Enter a Specific Water Body By Name":
-    user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="American Lake")
+    user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Lake Kapowsin")
     manual_city = st.text_input("📍 City/State closest to this water (for weather tracking):", value="Tacoma, WA")
     
-    active_water_body = user_water
-    water_context = f"""the specific single body of water named {user_water}. You MUST completely ignore alternative recommendations and list rules/gear exclusively for {user_water}."""
-    display_summary = f"🗺️ Target Water Body: **{user_water}**"
+    # 🌟 FUZZY AUTO-CORRECT PLUMBING INTERFACE
+    # We run the typed value against OpenStreetMap to get the official structural dictionary name
+    corrected_lake_name = user_water.strip()
+    try:
+        encoded_search = urllib.parse.quote(f"{user_water.strip()} {manual_city}")
+        headers = {'User-Agent': 'PNWFishingAdvisorApp/1.0'}
+        search_res = requests.get(f"https://nominatim.openstreetmap.org/search?q={encoded_search}&countrycodes=us&format=json&addressdetails=1&limit=1", headers=headers).json()
+        
+        if search_res and len(search_res) > 0:
+            match = search_res[0]
+            lat = float(match["lat"])
+            lon = float(match["lon"])
+            # Isolate the verified structural name from mapping results (e.g., "Lake Kapowsin")
+            raw_display = match["display_name"].split(",")[0].strip()
+            if "lake" in raw_display.lower() or "river" in raw_display.lower() or "reservoir" in raw_display.lower():
+                corrected_lake_name = raw_display
+
+    except Exception:
+        pass
+
+    active_water_body = corrected_lake_name
+    water_context = f"""the specific single body of water named {active_water_body}. You MUST completely ignore alternative recommendations and list rules/gear exclusively for {active_water_body}."""
+    display_summary = f"🗺️ Verified Target Water: **{active_water_body}**"
     location_name = manual_city if manual_city.strip() else "Tacoma, WA"
 
 else: # 🔍 Suggest Local Hotspots Mode
@@ -96,7 +114,6 @@ else: # 🔍 Suggest Local Hotspots Mode
     location_name = manual_city if manual_city.strip() else "Tacoma, WA"
     
     st.markdown("### 🛰️ Fast AI Scout Engine")
-    st.caption("Tap the button below to have Gemini dynamically scout your immediate area for top choices matching your target fish.")
     
     if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
         with st.spinner("🤖 Mapping local hotspots..."):
@@ -108,8 +125,8 @@ else: # 🔍 Suggest Local Hotspots Mode
                 if len(cleaned_list) >= 1:
                     st.session_state.scouted_lakes_dict[env_choice] = cleaned_list[:3]
                     st.success("🎯 Dropdown choices updated below!")
-            except Exception as se:
-                st.warning("Using regional baseline index options.")
+            except Exception:
+                pass
 
     dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, ["American Lake"])
     selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options)
@@ -118,7 +135,7 @@ else: # 🔍 Suggest Local Hotspots Mode
     water_context = f"the specific body of water named {selected_suggested}. Provide information, rules, and gear layouts exclusively for {selected_suggested}."
     display_summary = f"🔍 Scouting Hotspot Choice: **{selected_suggested}**"
 
-# Geocoding resolution for weather processing
+# Geocoding resolution fallback for weather processing if manual mode skipped it
 if location_name and not lat:
     try:
         clean_city = location_name.replace(".", "").split(",")[0].strip()
@@ -166,16 +183,25 @@ if lat and lon:
             st.caption(f"🗺️ Jurisdiction: {detected_state} ({agency_name})")
             st.markdown(display_summary)
             
-            # Map Linking Configuration
-            clean_lake_url = urllib.parse.quote(active_water_body.strip())
-            if detected_state == "Washington":
-                map_link = f"https://wdfw.wa.gov/fishing/locations/lowland-lakes/{clean_lake_url.lower().replace('%20', '-')}"
+            # 🛠️ ADVANCED DYNAMIC LINK CLEANSING BROKER
+            # Formats WDFW links dynamically to accommodate standard variations like 'lake-kapowsin'
+            cleaned_name_str = active_water_body.strip().lower()
+            if "lake" in cleaned_name_str:
+                cleaned_name_str = cleaned_name_str.replace("lake", "").strip()
+                url_lake_segment = f"lake-{cleaned_name_str}"
             else:
-                map_link = f"https://myodfw.com/fishing/locations?q={clean_lake_url}"
+                url_lake_segment = cleaned_name_str
+                
+            url_lake_segment = url_lake_segment.replace(" ", "-").replace("'", "")
+            encoded_clean_segment = urllib.parse.quote(url_lake_segment)
+            
+            if detected_state == "Washington":
+                map_link = f"https://wdfw.wa.gov/fishing/locations/lowland-lakes/{encoded_clean_segment}"
+            else:
+                map_link = f"https://myodfw.com/fishing/locations?q={urllib.parse.quote(active_water_body.strip())}"
                 
             st.link_button("🗺️ Open Official State Depth Map & Fish Stocking Records", map_link, use_container_width=True)
             
-            # 🛠️ MOBILE UX LAYOUT OVERHAUL: Full width layout prevents box clipping entirely
             col1, col2 = st.columns(2)
             with col1:
                 st.metric(label="Est. Water Temp", value=f"{estimated_water_temp:.1f}°F")
