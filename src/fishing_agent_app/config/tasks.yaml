@@ -7,11 +7,11 @@ analyze_weather_task:
 check_regulations_task:
   description: >
     Analyze the target framework parameter: {environment}. 
-    Review the specific fishing regulations for taking {target_fish} within the state of {current_state} matching this exact destination context.
-    Identify gear restrictions (e.g., barbless hooks, bait bans, hook limits) and daily bag/retention limits.
+    If the environment asks to suggest hotspots, you MUST provide a clear, bulleted list of 3 specific, named local bodies of water.
+    If a single specific lake or water body is already provided, you MUST focus entirely on that water body. Look up the specific fishing regulations for taking {target_fish} in that water within {current_state}, focusing on gear restrictions and daily limits.
   expected_output: >
     A detailed legal breakdown containing:
-    1. A Location Header explicitly confirming the target destination(s) analyzed (either the single specific water body requested, or the list of recommended local hotspots if auto-suggest mode was used).
+    1. A Location Header explicitly confirming the target destination(s) analyzed.
     2. A clear bulleted list of current legal hook types, bait restrictions, and daily catch/size limits matching those exact waters.
 
 prescribe_lures_task:
