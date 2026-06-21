@@ -22,61 +22,18 @@ gemini_scout_model = LLM(
     temperature=0.3
 )
 
-# 🛠️ Define the path to your newly uploaded bass photo
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
-
-# 🌟 Sets the browser tab favicon to your bass photo
 st.set_page_config(page_title="PNW Mobile Fishing Crew", page_icon=logo_path, layout="centered")
-
-# 🎣 Your main heading stays right here
 st.title("🎣 Mobile Fishing Advisor")
 
-# 📱 Mobile Home-Screen Icon & PWA Manifest Overwrite
 app_base_url = "https://fishing-guide.streamlit.app"
 st.logo(logo_path) 
 
+# Clear raw PWA HTML override to keep code clean and stable
 st.html(
     """
     <script>
-        // Force standard mobile favicon and apple-touch links
-        var tags = [
-            { rel: 'apple-touch-icon', href: 'https://fishing-guide.streamlit.app/~/+/src/fishing_agent_app/app_icon.png' },
-            { rel: 'icon', type: 'image/png', href: 'https://fishing-guide.streamlit.app/~/+/src/fishing_agent_app/app_icon.png' },
-            { rel: 'shortcut icon', href: 'https://fishing-guide.streamlit.app/~/+/src/fishing_agent_app/app_icon.png' }
-        ];
-        
-        tags.forEach(function(t) {
-            var link = window.parent.document.createElement('link');
-            link.rel = t.rel;
-            if (t.type) link.type = t.type;
-            link.href = t.href;
-            window.parent.document.getElementsByTagName('head')[0].appendChild(link);
-        });
-
-        // Override the modern Web Manifest file that Android Chrome reads
-        var manifestLink = window.parent.document.querySelector('link[rel="manifest"]');
-        if (manifestLink) {
-            fetch(manifestLink.href)
-                .then(response => response.json())
-                .then(data => {
-                    data.icons = [
-                        {
-                            "src": "https://fishing-guide.streamlit.app/~/+/src/fishing_agent_app/app_icon.png",
-                            "sizes": "192x192",
-                            "type": "image/png",
-                            "purpose": "any maskable"
-                        },
-                        {
-                            "src": "https://fishing-guide.streamlit.app/~/+/src/fishing_agent_app/app_icon.png",
-                            "sizes": "512x512",
-                            "type": "image/png",
-                            "purpose": "any maskable"
-                        }
-                    ];
-                    var blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
-                    manifestLink.href = URL.createObjectURL(blob);
-                });
-        }
+        console.log("Mobile gateway initialized.");
     </script>
     """
 )
@@ -120,69 +77,33 @@ display_summary = ""
 active_water_body = ""
 
 if routing_mode == "🛰️ Use My Mobile GPS Coordinates":
-    gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps_click')
+    st.info("📡 Requesting satellite lock... If your browser blocks this, please use 'Suggest Local Hotspots' or enter location by name.")
+    gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps_click_v2')
+    
     if gps_location:
-        lat = gps_location['coords']['latitude']
-        lon = gps_location['coords']['longitude']
+        lat = float(gps_location['coords']['latitude'])
+        lon = float(gps_location['coords']['longitude'])
         location_name = f"GPS: ({lat:.4f}, {lon:.4f})"
         active_water_body = "Current GPS Location"
         water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f}."
-        display_summary = "🎯 Locked to Live Satellite GPS Location"
+        display_summary = f"🎯 Locked to Live Satellite GPS: {lat:.4f}, {lon:.4f}"
         st.success(f"🔒 Mobile Satellite Link Active")
     else:
-        st.info("Awaiting satellite lock... Ensure browser permissions are enabled.")
-        lat, lon, location_name = 47.2529, -122.4443, "Tacoma, WA"
-        active_water_body = "Tacoma Local Waters"
-        water_context = "Local bodies of water near Tacoma, WA"
-        display_summary = "📍 Region: Tacoma, WA (GPS Awaiting Lock)"
+        st.warning("⚠️ Mobile GPS access was denied or blocked by browser security permissions.")
+        fallback_city = st.text_input("📍 GPS Backup Mode: Enter your current City, State manually instead:", value="Portland, OR")
+        location_name = fallback_city
 
 elif routing_mode == "✍️ Enter a Specific Water Body By Name":
     user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Lake Kapowsin")
     manual_city = st.text_input("📍 City/State closest to this water (for weather tracking):", value="Tacoma, WA")
-    
-    corrected_lake_name = user_water.strip()
-    resolved_via_osm = False
-    
-    try:
-        encoded_search = urllib.parse.quote(f"{user_water.strip()} {manual_city}")
-        headers = {'User-Agent': 'PNWFishingAdvisorApp/1.0'}
-        search_res = requests.get(f"https://nominatim.openstreetmap.org/search?q={encoded_search}&countrycodes=us&format=json&addressdetails=1&limit=1", headers=headers).json()
-        
-        if search_res and len(search_res) > 0:
-            match = search_res[0]
-            lat = float(match["lat"])
-            lon = float(match["lon"])
-            raw_display = match["display_name"].split(",")[0].strip()
-            if any(w in raw_display.lower() for w in ["lake", "river", "reservoir", "pond", "creek", "marine"]):
-                corrected_lake_name = raw_display
-                resolved_via_osm = True
-    except Exception:
-        pass
-
-    if not resolved_via_osm:
-        with st.spinner("🧠 AI Guardrail auto-correcting water body spelling..."):
-            correction_prompt = f"""You are an expert Pacific Northwest fishing location coordinate coordinator. 
-            The user typed this fishing location name: '{user_water}' near '{manual_city}'. It contains spelling errors or layout typos.
-            Based on your knowledge of Washington (WDFW) and Oregon (ODFW) waters, what is the exact, correct official name of this lake, river, or Marine Area?
-            Output ONLY the corrected name (e.g., 'Lake Kapowsin' or 'American Lake'). Do not include any punctuation, explanations, or extra words."""
-            try:
-                ai_correction = gemini_scout_model.call(messages=[{"role": "user", "content": correction_prompt}])
-                corrected_lake_name = str(ai_correction).strip().replace("'", "").replace('"', '')
-                st.caption(f"✨ AI Auto-Corrected typo to: **{corrected_lake_name}**")
-            except Exception:
-                pass
-
-    active_water_body = corrected_lake_name
-    water_context = f"""the specific single body of water named {active_water_body}. You MUST completely ignore alternative recommendations and list rules/gear exclusively for {active_water_body}."""
-    display_summary = f"🗺️ Verified Target Water: **{active_water_body}**"
-    location_name = manual_city if manual_city.strip() else "Tacoma, WA"
+    location_name = manual_city
+    active_water_body = user_water.strip()
 
 else: # 🔍 Suggest Local Hotspots Mode
     manual_city = st.text_input("📍 Enter your search City, State:", value="Tacoma, WA")
-    location_name = manual_city if manual_city.strip() else "Tacoma, WA"
+    location_name = manual_city
     
     st.markdown("### 🛰️ Fast AI Scout Engine")
-    
     if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
         with st.spinner("🤖 Mapping local hotspots..."):
             prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, or marine zones located near {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, explanations, or numbers."
@@ -198,28 +119,37 @@ else: # 🔍 Suggest Local Hotspots Mode
 
     dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, ["American Lake"])
     selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options)
-    
     active_water_body = selected_suggested
-    water_context = f"the specific body of water named {selected_suggested}. Provide information, rules, and gear layouts exclusively for {selected_suggested}."
-    display_summary = f"🔍 Scouting Hotspot Choice: **{selected_suggested}**"
 
-# Geocoding resolution fallback for weather processing if manual mode skipped it
+# 🧭 CORE GEOLOCATION RESOLUTION ENGINE
 if location_name and not lat:
     try:
-        clean_city = location_name.replace(".", "").split(",")[0].strip()
-        encoded_city = urllib.parse.quote(clean_city)
-        headers = {'User-Agent': 'PNWFishingAdvisorApp/1.0'}
+        encoded_city = urllib.parse.quote(location_name.strip())
+        headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
         osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&countrycodes=us&format=json&addressdetails=1&limit=1"
         osm_res = requests.get(osm_url, headers=headers).json()
         if osm_res and len(osm_res) > 0:
-            lat, lon = float(osm_res[0]["lat"]), float(osm_res[0]["lon"])
+            lat = float(osm_res[0]["lat"])
+            lon = float(osm_res[0]["lon"])
+            if routing_mode != "🛰️ Use My Mobile GPS Coordinates":
+                display_summary = f"🗺️ Target Water: **{active_water_body}** ({location_name})"
+                water_context = f"the specific body of water named {active_water_body} near {location_name}."
         else:
-            lat, lon = 47.2529, -122.4443
+            lat, lon = 47.2529, -122.4443  # Final hard safety anchor
     except Exception:
         lat, lon = 47.2529, -122.4443
 
-detected_state = "Oregon" if ("Oregon" in location_name or "OR" in location_name) else "Washington"
-agency_name = "ODFW" if detected_state == "Oregon" else "WDFW"
+# 🌲 MATHEMATICAL JURISDICTION ROUTER (Checks lat lines down past the Columbia River)
+if lat is not None:
+    if "oregon" in location_name.lower() or "or" in location_name.lower() or lat < 46.25:
+        detected_state = "Oregon"
+        agency_name = "ODFW"
+    else:
+        detected_state = "Washington"
+        agency_name = "WDFW"
+else:
+    detected_state = "Washington"
+    agency_name = "WDFW"
 
 # 🚀 RUN ANALYSIS BUTTON
 st.subheader("⚡ Step 4: Run Analysis")
@@ -238,41 +168,30 @@ if lat and lon:
         trend = "Rising rapidly" if diff > 0.05 else "Rising slowly" if diff > 0.01 else "Falling rapidly" if diff < -0.05 else "Falling slowly" if diff < -0.01 else "Stable"
         cloud_word = "Clear/Sunny" if current['cloud_cover'] < 20 else "Partially Cloudy" if current['cloud_cover'] < 60 else "Overcast"
 
-        # Water Clarity Engine
         recent_rain = sum(weather['hourly'].get('precipitation', [0.0])[-12:])
         clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility"
 
-        # Mathematical Water Surface Temperature Estimation Model
         past_3_days_air_temps = weather['hourly']['temperature_2m'][:72]
         mean_air_temp = sum(past_3_days_air_temps) / len(past_3_days_air_temps) if past_3_days_air_temps else current['temperature_2m']
         estimated_water_temp = (0.7 * mean_air_temp) + (0.3 * current['temperature_2m'])
 
-        # 📡 LIVE TELEMETRY CORE GATEWAY BLOCK
         live_gauge_data = "Station data unavailable for static land locations."
         
         if env_choice == "Freshwater":
-            west_lon = lon - 0.45
-            south_lat = lat - 0.45
-            east_lon = lon + 0.45
-            north_lat = lat + 0.45
-            
+            west_lon, south_lat, east_lon, north_lat = lon - 0.45, lat - 0.45, lon + 0.45, lat + 0.45
             usgs_url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&bBox={west_lon:.4f},{south_lat:.4f},{east_lon:.4f},{north_lat:.4f}&parameterCd=00060,00065&siteStatus=active"
             try:
                 usgs_res = requests.get(usgs_url, timeout=6).json()
                 time_series = usgs_res.get('value', {}).get('timeSeries', [])
-                
                 if time_series and len(time_series) > 0:
                     ts_entry = time_series[0]
                     site_name = ts_entry.get('sourceInfo', {}).get('siteName', 'Unknown Stream')
                     values_block = ts_entry.get('values', [])
-                    
                     if values_block and len(values_block) > 0 and len(values_block[0].get('value', [])) > 0:
                         val = values_block[0]['value'][0]['value']
                         p_code = ts_entry.get('variable', {}).get('variableCode', [{}])[0].get('value', '')
                         unit = "CFS (Flow Volume)" if "00060" in p_code else "ft (Water Height)"
                         live_gauge_data = f"🌊 Nearest Active Field Gauge: {site_name} | Current State: {val} {unit}"
-                    else:
-                        live_gauge_data = f"🌊 Active Station Found ({site_name}) but stream data frame is empty."
                 else:
                     live_gauge_data = "⚠️ Local Hydrology: No active river flow gauges found in this lake zone."
             except Exception:
@@ -285,9 +204,7 @@ if lat and lon:
                     latest_reading = noaa_res["data"][-1]
                     tide_height = latest_reading["v"]
                     tide_time = latest_reading["t"]
-                    live_gauge_data = f"⚓ NOAA Marine Station 9446484 (Tacoma) | Current Tide Level: {tide_height} ft above MLLW at {tide_time}"
-                else:
-                    live_gauge_data = "⚓ NOAA Tides: Marine monitoring arrays reporting empty data frames."
+                    live_gauge_data = f"⚓ NOAA Marine Station 9446484 | Current Tide Level: {tide_height} ft above MLLW at {tide_time}"
             except Exception:
                 live_gauge_data = "⚓ NOAA Tides: Marine telemetry link timed out."
 
@@ -324,7 +241,6 @@ if lat and lon:
             st.markdown(f"📈 **Barometric Pressure Trend:** {trend} ({diff:+.2f} hPa)")
             st.markdown(f"☁️ **Sky Conditions:** {cloud_word}")
 
-        # 🤖 ENGINE EXECUTION INTERFACE
         if execute_crew:
             inputs = {
                 'target_fish': target_fish,
