@@ -51,46 +51,63 @@ target_fish = st.pills("Tap a species:", options=species_options, default=defaul
 st.info(f"🎯 Strategy Target: **{target_fish}** ({env_choice})")
 
 # 📡 STEP 3: LOCATION SYSTEM
-st.subheader("📡 Step 3: Location Configuration")
+st.subheader("📡 Step 3: Destination Routing Mode")
 
-if "use_gps" not in st.session_state:
-    st.session_state.use_gps = False
-
-if st.button("📍 Tap to Share Mobile GPS Location", type="secondary", use_container_width=True):
-    st.session_state.use_gps = True
+# Clean 3-way mobile selector for destination routing
+routing_mode = st.radio(
+    "How do you want to set your fishing location?",
+    options=["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name", "🛰️ Use My Mobile GPS Coordinates"],
+    horizontal=True
+)
 
 lat, lon, location_name = None, None, ""
-gps_location = None
+water_context = ""
 
-if st.session_state.use_gps:
+if routing_mode == "🛰️ Use My Mobile GPS Coordinates":
     gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps_click')
+    if gps_location:
+        lat = gps_location['coords']['latitude']
+        lon = gps_location['coords']['longitude']
+        location_name = f"GPS: ({lat:.4f}, {lon:.4f})"
+        water_context = f"the water body matching GPS coordinates {lat:.4f}, {lon:.4f}"
+        st.success(f"🔒 Mobile Satellite Link Active: {location_name}")
+    else:
+        st.info("Awaiting satellite lock... Ensure browser permissions are enabled.")
+        # Fallback if GPS fails to connect immediately
+        lat, lon, location_name = 47.2529, -122.4443, "Tacoma, WA"
+        water_context = f"Local bodies of water near Tacoma, WA"
 
-if gps_location:
-    lat = gps_location['coords']['latitude']
-    lon = gps_location['coords']['longitude']
-    location_name = f"GPS Coordinates ({lat:.4f}, {lon:.4f})"
-    st.success(f"🔒 Mobile Satellite Link Active: {lat:.4f}, {lon:.4f}")
-else:
-    manual_city = st.text_input("📍 Location Fallback (Enter City, State if GPS is off)", value="Tacoma, WA")
+elif routing_mode == "✍️ Enter a Specific Water Body By Name":
+    # 🌟 NEW: Let the user type in their exact destination lake, river, or marine area
+    user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="American Lake")
+    manual_city = st.text_input("📍 City/State closest to this water (for weather tracking):", value="Tacoma, WA")
+    
+    water_context = f"the specific water body named '{user_water}'"
+    location_name = manual_city if manual_city.strip() else "Tacoma, WA"
+
+else: # 🔍 Suggest Local Hotspots Mode
+    manual_city = st.text_input("📍 Enter your current City, State:", value="Tacoma, WA")
     if not manual_city.strip():
         manual_city = "Tacoma, WA"
-        
-    encoded_city = urllib.parse.quote(manual_city.strip())
-    
+    location_name = manual_city
+    water_context = f"Top highly-rated local {env_choice} spots near {location_name} specifically known for holding {target_fish}"
+
+# Geocoding resolution for weather processing (runs behind the scenes for custom or manual inputs)
+if location_name and not lat:
     try:
+        clean_city = location_name.replace(".", "").split(",")[0].strip()
+        encoded_city = urllib.parse.quote(clean_city)
         headers = {'User-Agent': 'PNWFishingAdvisorApp/1.0'}
         osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&countrycodes=us&format=json&addressdetails=1&limit=1"
         osm_res = requests.get(osm_url, headers=headers).json()
         
         if osm_res and len(osm_res) > 0:
-            match = osm_res[0]
-            lat = float(match["lat"])
-            lon = float(match["lon"])
-            address = match.get("address", {})
-            city_display = address.get("city", address.get("town", address.get("village", match["display_name"].split(",")[0])))
+            lat = float(osm_res[0]["lat"])
+            lon = float(osm_res[0]["lon"])
+            address = osm_res[0].get("address", {})
+            city_display = address.get("city", address.get("town", address.get("village", clean_city)))
             state_display = address.get("state", "Washington")
             location_name = f"{city_display}, {state_display}"
-            st.success(f"🗺️ Locked onto location: {location_name}")
         else:
             lat, lon, location_name = 47.2529, -122.4443, "Tacoma, Washington"
     except Exception as ge:
@@ -103,13 +120,6 @@ if "Oregon" in location_name or "OR" in location_name:
 else:
     detected_state = "Washington"
     agency_name = "WDFW"
-
-# 🧠 NEW UPGRADE: DYNAMIC HOTSPOT SUGGESTION TOGGLE
-suggest_hotspots = st.toggle("🔍 Suggest local lakes or fishing locations near me", value=True)
-
-water_context = f"Local {env_choice} bodies of water near {location_name}"
-if suggest_hotspots:
-    water_context = f"Top highly-rated local {env_choice} spots near {location_name} specifically known for holding {target_fish}"
 
 # 🚀 STEP 4: RUN ANALYSIS BUTTON
 st.subheader("⚡ Step 4: Run Analysis")
@@ -149,7 +159,7 @@ if lat and lon:
         if execute_crew:
             inputs = {
                 'target_fish': target_fish,
-                'environment': water_context,  
+                'environment': f"{env_choice} at {water_context}",  
                 'current_state': detected_state,
                 'water_temp': f"{current['temperature_2m']}°F",  
                 'barometric_pressure': trend, 
@@ -165,10 +175,10 @@ if lat and lon:
                 
                 if "### 🎣 Tactical Strategy Plan" in raw_output:
                     parts = raw_output.split("### 🎣 Tactical Strategy Plan")
-                    compliance_section = parts[0].replace("### 🚨 Regional Legal Compliance Guardrails & Environment", "").strip()
+                    compliance_section = parts[0].replace("### 🚨 Regional Legal Compliance Guardrails & Location Suggestions", "").strip()
                     tactical_section = parts[1].strip()
                     
-                    with st.expander(f"🚨 {agency_name} Legal Compliance Guardrails & Location Suggestions", expanded=True):
+                    with st.expander(f"🚨 {agency_name} Legal Compliance Guardrails & Locations", expanded=True):
                         st.markdown(compliance_section)
                         
                     with st.expander("🎣 Tactical Strategy Plan", expanded=True):
