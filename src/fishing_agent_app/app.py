@@ -1,10 +1,10 @@
+import streamlit as st
 import sys
 import os
 import requests
 import urllib.parse
 from datetime import datetime
 from streamlit_js_eval import streamlit_js_eval
-import streamlit.components.v1 as components
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -31,11 +31,10 @@ st.set_page_config(page_title="PNW Mobile Fishing Crew", page_icon=logo_path, la
 # 🎣 Your main heading stays right here
 st.title("🎣 Mobile Fishing Advisor")
 
-# 📱 Mobile Home-Screen Icon Overwrite
+# 📱 Mobile Home-Screen Icon Overwrite (Modern st.html version)
 app_base_url = "https://fishing-guide-production.streamlit.app"
 st.logo(logo_path) 
 
-# Modern 2026 Streamlit HTML Injection to force the phone grid layout
 st.html(
     f"""
     <script>
@@ -51,8 +50,6 @@ st.html(
         window.parent.document.getElementsByTagName('head')[0].appendChild(iconLink);
     </script>
     """
-)
-    height=0,
 )
 
 if "scouted_lakes_dict" not in st.session_state:
