@@ -8,8 +8,9 @@ from streamlit_js_eval import streamlit_js_eval
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-if "GEMINI_API_KEY" in st.secrets:
-    os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
+# 🔑 Load the Groq Key from Secrets Vault
+if "GROQ_API_KEY" in st.secrets:
+    os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
@@ -17,8 +18,9 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
+# 🏎️ Route the AI Scouting Engine through Groq's ultra-fast free tier
 gemini_scout_model = LLM(
-    model="gemini/gemini-2.5-flash",
+    model="groq/llama-3.1-8b-instant",
     temperature=0.3
 )
 
@@ -29,11 +31,10 @@ st.title("🎣 Mobile Fishing Advisor")
 app_base_url = "https://fishing-guide.streamlit.app"
 st.logo(logo_path) 
 
-# Clear raw PWA HTML override to keep code clean and stable
 st.html(
     """
     <script>
-        console.log("Mobile gateway initialized.");
+        console.log("Mobile gateway initialized with Groq optimization.");
     </script>
     """
 )
@@ -78,7 +79,7 @@ active_water_body = ""
 
 if routing_mode == "🛰️ Use My Mobile GPS Coordinates":
     st.info("📡 Requesting satellite lock... If your browser blocks this, please use 'Suggest Local Hotspots' or enter location by name.")
-    gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps_click_v2')
+    gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps_click_v3')
     
     if gps_location:
         lat = float(gps_location['coords']['latitude'])
@@ -107,6 +108,7 @@ else: # 🔍 Suggest Local Hotspots Mode
     
     if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
         with st.spinner(f"🤖 Mapping local hotspots near {location_name}..."):
+            # Cleaned prompt style optimized for open-source Llama parsing
             prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, or marine zones located near {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, explanations, or numbers."
             try:
                 scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
@@ -116,13 +118,12 @@ else: # 🔍 Suggest Local Hotspots Mode
                 if len(cleaned_list) >= 1:
                     st.session_state.scouted_lakes_dict[env_choice] = cleaned_list[:3]
                     st.success("🎯 Hotspots updated!")
-                    st.rerun()  # 🔄 Force layout execution redraw
+                    st.rerun() 
                 else:
                     st.error("🤖 AI returned an empty list. Try clicking again.")
             except Exception as e:
                 st.error(f"⚠️ Scouting engine timeout: {e}")
 
-    # Dynamic default routing triggers even if connection drops
     if "oregon" in location_name.lower() or "or" in location_name.lower():
         default_spots = ["Hagg Lake", "Blue Lake", "Willamette River Sector"] if env_choice == "Freshwater" else ["Marine Area 1 (Astoria)", "Columbia River Estuary", "Newport Pier"]
     else:
@@ -146,11 +147,11 @@ if location_name and not lat:
                 display_summary = f"🗺️ Target Water: **{active_water_body}** ({location_name})"
                 water_context = f"the specific body of water named {active_water_body} near {location_name}."
         else:
-            lat, lon = 47.2529, -122.4443  # Final hard safety anchor
+            lat, lon = 47.2529, -122.4443 
     except Exception:
         lat, lon = 47.2529, -122.4443
 
-# 🌲 MATHEMATICAL JURISDICTION ROUTER (Checks lat lines down past the Columbia River)
+# 🌲 JURISDICTION ROUTER
 if lat is not None:
     if "oregon" in location_name.lower() or "or" in location_name.lower() or lat < 46.25:
         detected_state = "Oregon"
@@ -263,7 +264,9 @@ if lat and lon:
                 'wind_speed': f"{current['wind_speed_10m']} mph",
                 'water_clarity': f"{clarity_estimate}. Additional live field gauge data shows: {live_gauge_data}"
             }
-            with st.spinner("🤖 Consulting AI Specialists..."):
+            with st.spinner("🤖 Consulting Fast AI Specialists via Groq..."):
+                # ⚙️ NOTE: Ensure your underlying crew.py definition also hooks into os.environ.get("GROQ_API_KEY") 
+                # or uses the default environment model if you configured it there!
                 result = FishingAgentApp().crew().kickoff(inputs=inputs)
                 raw_output = result.raw if hasattr(result, 'raw') else str(result)
                 st.success("🎯 Strategy Formulated!")
