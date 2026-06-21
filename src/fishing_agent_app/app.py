@@ -1,3 +1,4 @@
+Python
 import streamlit as st
 import sys
 import os
@@ -5,6 +6,7 @@ import requests
 import urllib.parse
 from datetime import datetime
 from streamlit_js_eval import streamlit_js_eval
+import streamlit.components.v1 as components  # 👈 Added this missing import!
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -22,8 +24,36 @@ gemini_scout_model = LLM(
     temperature=0.3
 )
 
-app_base_url = "https://your-actual-app-name.streamlit.app"
+# 🛠️ Define the path to your newly uploaded bass photo
+logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
+
+# 🌟 Sets the browser tab favicon to your bass photo
+st.set_page_config(page_title="PNW Mobile Fishing Crew", page_icon=logo_path, layout="centered")
+
+# 🎣 Your main heading stays right here
 st.title("🎣 Mobile Fishing Advisor")
+
+# 📱 Mobile Home-Screen Icon Overwrite
+app_base_url = "https://your-actual-app-name.streamlit.app"  # 👈 Remember to put your real live link here!
+st.logo(logo_path) 
+
+components.html(
+    f"""
+    <script>
+        var link = window.parent.document.createElement('link');
+        link.rel = 'apple-touch-icon';
+        link.href = '{app_base_url}/~/+/src/fishing_agent_app/app_icon.png';
+        window.parent.document.getElementsByTagName('head')[0].appendChild(link);
+        
+        var iconLink = window.parent.document.createElement('link');
+        iconLink.rel = 'icon';
+        iconLink.type = 'image/png';
+        iconLink.href = '{app_base_url}/~/+/src/fishing_agent_app/app_icon.png';
+        window.parent.document.getElementsByTagName('head')[0].appendChild(iconLink);
+    </script>
+    """,
+    height=0,
+)
 
 if "scouted_lakes_dict" not in st.session_state:
     st.session_state.scouted_lakes_dict = {
