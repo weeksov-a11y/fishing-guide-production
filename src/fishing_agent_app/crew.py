@@ -3,17 +3,17 @@ from crewai.project import CrewBase, agent, crew, task
 import os
 import streamlit as st
 
-# Check for keys in Streamlit secrets
-if "GEMINI_API_KEY" in st.secrets:
-    os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
+# Check for Groq key in Streamlit secrets
+if "GROQ_API_KEY" in st.secrets:
+    os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
-# 🧠 Swapping out Groq for the massive free-tier limits of Gemini 2.5 Flash
-gemini_llm = LLM(
-    model="gemini/gemini-2.5-flash",
-    temperature=0.7
+# 🏎️ Fully shifting the backend brain to Groq's ultra-fast, uncapped free tier
+groq_llm = LLM(
+    model="groq/llama-3.1-8b-instant",
+    temperature=0.3
 )
 
 @CrewBase
@@ -27,7 +27,7 @@ class FishingAgentApp():
     def weather_analyst(self) -> Agent:
         tgt_agent = Agent(
             config=self.agents_config['weather_analyst'],
-            llm=gemini_llm,
+            llm=groq_llm,
             verbose=True
         )
         if hasattr(tgt_agent, 'cache_prompt'):
@@ -38,7 +38,7 @@ class FishingAgentApp():
     def wdfw_compliance_officer(self) -> Agent:
         tgt_agent = Agent(
             config=self.agents_config['wdfw_compliance_officer'],
-            llm=gemini_llm,
+            llm=groq_llm,
             verbose=True
         )
         if hasattr(tgt_agent, 'cache_prompt'):
@@ -49,7 +49,7 @@ class FishingAgentApp():
     def lure_specialist(self) -> Agent:
         tgt_agent = Agent(
             config=self.agents_config['lure_specialist'],
-            llm=gemini_llm,
+            llm=groq_llm,
             verbose=True
         )
         if hasattr(tgt_agent, 'cache_prompt'):
