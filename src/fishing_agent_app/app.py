@@ -3,6 +3,7 @@ import sys
 import os
 import requests
 import urllib.parse
+import re
 from datetime import datetime
 
 # 🛰️ Native Universal Hardware Geolocation Link
@@ -23,7 +24,7 @@ from fishing_agent_app.crew import FishingAgentApp
 # 🏎️ Route the AI Scouting Engine through Groq's ultra-fast free tier
 gemini_scout_model = LLM(
     model="groq/llama-3.1-8b-instant",
-    temperature=0.3
+    temperature=0.1  # Lowered temperature makes the output structure highly stable
 )
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
@@ -32,14 +33,6 @@ st.title("🎣 Mobile Fishing Advisor")
 
 app_base_url = "https://fishing-guide.streamlit.app"
 st.logo(logo_path) 
-
-st.html(
-    """
-    <script>
-        console.log("Mobile gateway initialized with Groq optimization.");
-    </script>
-    """
-)
 
 if "scouted_lakes_dict" not in st.session_state:
     st.session_state.scouted_lakes_dict = {
@@ -55,7 +48,7 @@ env_choice = st.segmented_control(
     default="Freshwater"
 )
 
-# 🐟 STEP 2: CHOOSE TARGET SPECIES (Updated for River Salmon & Local Ecosystems)
+# 🐟 STEP 2: CHOOSE TARGET SPECIES
 st.subheader("🐟 Step 2: Choose Your Target Species")
 if env_choice == "Freshwater":
     fw_category = st.radio(
@@ -81,7 +74,7 @@ else:
 
 target_fish = st.pills("Tap your target fish:", options=species_options, default=default_species)
 
-# 📡 STEP 3: LOCATION SYSTEM (Universal Native Upgrade)
+# 📡 STEP 3: LOCATION SYSTEM
 st.subheader("📡 Step 3: Destination Routing Mode")
 routing_mode = st.radio(
     "How do you want to set your fishing location?",
@@ -92,22 +85,33 @@ routing_mode = st.radio(
 lat, lon, location_name = None, None, ""
 water_context = ""
 display_summary = ""
-active_water_body = ""
+active_water_body = "Current GPS Location"
 
 if routing_mode == "🛰️ Use My Live GPS Coordinates":
     st.markdown("### 🛰️ Mobile Satellite Link")
     st.info("Tap the button below to broadcast your phone's live coordinate data stream.")
     
-    # Renders the native device permissions gatekeeper
     location_data = streamlit_geolocation()
     
     if location_data and location_data.get('latitude') is not None:
         lat = float(location_data['latitude'])
         lon = float(location_data['longitude'])
-        location_name = f"GPS: ({lat:.4f}, {lon:.4f})"
+        
+        # 🗺️ REVERSE GEOCODING ENGINE: Convert pure coordinates into real City/State text
+        try:
+            headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
+            rev_url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
+            rev_res = requests.get(rev_url, headers=headers).json()
+            address = rev_res.get('address', {})
+            city = address.get('city', address.get('town', address.get('village', 'Unknown Area')))
+            state = address.get('state', 'Washington')
+            location_name = f"{city}, {state}"
+        except Exception:
+            location_name = "Tacoma, WA" # Fail-safe backup
+            
         active_water_body = "Current GPS Location"
-        water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f}."
-        display_summary = f"🎯 Universal Position Locked: {lat:.4f}, {lon:.4f}"
+        water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f} near {location_name}."
+        display_summary = f"🎯 Universal Position Locked: **{location_name}** ({lat:.4f}, {lon:.4f})"
         st.success("🔒 Satellite Handshake Verified")
     else:
         st.write("⏳ *Awaiting satellite link activation click above...*")
@@ -125,11 +129,20 @@ else: # 🔍 Suggest Local Hotspots Mode
     st.markdown("### 🛰️ Fast AI Scout Engine")
     if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
         with st.spinner(f"🤖 Mapping local hotspots near {location_name}..."):
-            prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, or marine zones located near {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, explanations, or numbers."
+            # Robust prompt layout optimized for open-source Llama parsing
+            prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, or marine zones located near {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers. Example format:\nLake Kapowsin\nAmerican Lake\nSpanaway Lake"
             try:
                 scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
                 raw_text = str(scout_res).strip()
-                cleaned_list = [line.replace("*","").replace("-","").strip() for line in raw_text.split("\n") if line.strip()]
+                
+                # 🔥 HARDENED PARSER: Strips away formatting quirks from Groq Llama output strings
+                cleaned_list = []
+                for line in raw_text.split("\n"):
+                    clean_line = re.sub(r'^[*-]\s*', '', line) # Strips bullet points
+                    clean_line = re.sub(r'^\d+[.)]\s*', '', clean_line) # Strips numbers like 1. or 2)
+                    clean_line = clean_line.strip()
+                    if clean_line:
+                        cleaned_list.append(clean_line)
                 
                 if len(cleaned_list) >= 1:
                     st.session_state.scouted_lakes_dict[env_choice] = cleaned_list[:3]
@@ -140,11 +153,7 @@ else: # 🔍 Suggest Local Hotspots Mode
             except Exception as e:
                 st.error(f"⚠️ Scouting engine timeout: {e}")
 
-    if "oregon" in location_name.lower() or "or" in location_name.lower():
-        default_spots = ["Hagg Lake", "Blue Lake", "Willamette River Sector"] if env_choice == "Freshwater" else ["Marine Area 1 (Astoria)", "Columbia River Estuary", "Newport Pier"]
-    else:
-        default_spots = ["Spanaway Lake", "American Lake", "Lake Kapowsin"] if env_choice == "Freshwater" else ["Marine Area 11 (Tacoma)", "Marine Area 13 (Olympia)", "Point Defiance Pier"]
-
+    default_spots = ["Spanaway Lake", "American Lake", "Lake Kapowsin"] if env_choice == "Freshwater" else ["Marine Area 11 (Tacoma)", "Marine Area 13 (Olympia)", "Point Defiance Pier"]
     dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, default_spots)
     selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options)
     active_water_body = selected_suggested
