@@ -3,3 +3,4 @@ litellm
 requests
 streamlit
 streamlit-js-eval
+streamlit-geolocation
