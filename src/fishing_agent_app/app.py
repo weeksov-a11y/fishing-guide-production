@@ -56,13 +56,28 @@ env_choice = st.segmented_control(
 # 🐟 STEP 2: CHOOSE TARGET SPECIES
 st.subheader("🐟 Step 2: Choose Your Target Species")
 if env_choice == "Freshwater":
-    species_options = ["Crappie", "Largemouth Bass", "Smallmouth Bass", "Rainbow Trout", "Perch", "Catfish"]
-    default_species = "Crappie"
+    fw_category = st.radio(
+        "Select System Type:", 
+        options=["🏞️ River / Anadromous Runs", "🏡 Lowland Lakes"], 
+        horizontal=True
+    )
+    if fw_category == "🏞️ River / Anadromous Runs":
+        species_options = [
+            "King Salmon (Fall Chinook)", 
+            "Silver Salmon (Coho)", 
+            "Pink Salmon (Odd-Years Only)", 
+            "Chum Salmon", 
+            "Steelhead"
+        ]
+        default_species = "Silver Salmon (Coho)"
+    else:
+        species_options = ["Crappie", "Largemouth Bass", "Smallmouth Bass", "Rainbow Trout", "Perch", "Catfish"]
+        default_species = "Crappie"
 else:
     species_options = ["Resident Coho Salmon", "Chinook Salmon", "Puget Sound Surfperch", "Flounder", "Spiny Dogfish", "Dabs", "Sole"]
     default_species = "Resident Coho Salmon"
 
-target_fish = st.pills("Tap a species:", options=species_options, default=default_species)
+target_fish = st.pills("Tap your target fish:", options=species_options, default=default_species)
 
 # 📡 STEP 3: LOCATION SYSTEM
 st.subheader("📡 Step 3: Destination Routing Mode")
@@ -79,7 +94,7 @@ active_water_body = ""
 
 if routing_mode == "🛰️ Use My Mobile GPS Coordinates":
     st.info("📡 Requesting satellite lock... If your browser blocks this, please use 'Suggest Local Hotspots' or enter location by name.")
-    gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps_click_v3')
+    gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps_click_v2')
     
     if gps_location:
         lat = float(gps_location['coords']['latitude'])
@@ -95,7 +110,7 @@ if routing_mode == "🛰️ Use My Mobile GPS Coordinates":
         location_name = fallback_city
 
 elif routing_mode == "✍️ Enter a Specific Water Body By Name":
-    user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Lake Kapowsin")
+    user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Puyallup River")
     manual_city = st.text_input("📍 City/State closest to this water (for weather tracking):", value="Tacoma, WA")
     location_name = manual_city
     active_water_body = user_water.strip()
@@ -104,11 +119,9 @@ else: # 🔍 Suggest Local Hotspots Mode
     manual_city = st.text_input("📍 Enter your search City, State:", value="Tacoma, WA")
     location_name = manual_city
     
-    st.markdown("### 🛰️ Fast AI Scout Engine")
-    
+    st.markdown("### ### 🛰️ Fast AI Scout Engine")
     if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
         with st.spinner(f"🤖 Mapping local hotspots near {location_name}..."):
-            # Cleaned prompt style optimized for open-source Llama parsing
             prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, or marine zones located near {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, explanations, or numbers."
             try:
                 scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
@@ -220,38 +233,32 @@ if lat and lon:
             except Exception:
                 live_gauge_data = "⚓ NOAA Tides: Marine telemetry link timed out."
 
-        with st.expander(f"🌦️ Live Environmental Metrics & Maps for {active_water_body}", expanded=True):
+        # 📱 SMOOTH POLISHED METRICS ROW INTERFACE
+        with st.expander(f"🌦️ Real-Time Conditions: {active_water_body}", expanded=True):
             st.caption(f"🗺️ Jurisdiction: {detected_state} ({agency_name})")
             st.markdown(display_summary)
             
-            cleaned_name_str = active_water_body.strip().lower()
-            if "lake" in cleaned_name_str:
-                cleaned_name_str = cleaned_name_str.replace("lake", "").strip()
-                url_lake_segment = f"lake-{cleaned_name_str}"
-            else:
-                url_lake_segment = cleaned_name_str
-                
-            url_lake_segment = url_lake_segment.replace(" ", "-").replace("'", "")
-            encoded_clean_segment = urllib.parse.quote(url_lake_segment)
-            
-            if detected_state == "Washington":
-                map_link = f"https://wdfw.wa.gov/fishing/locations/lowland-lakes/{encoded_clean_segment}"
-            else:
-                map_link = f"https://myodfw.com/fishing/locations?q={urllib.parse.quote(active_water_body.strip())}"
-                
-            st.link_button("🗺️ Open Official State Depth Map & Fish Stocking Records", map_link, use_container_width=True)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric(label="Est. Water Temp", value=f"{estimated_water_temp:.1f}°F")
-            with col2:
-                st.metric(label="Wind Velocity", value=f"{current['wind_speed_10m']} mph")
+            m_col1, m_col2, m_col3 = st.columns(3)
+            with m_col1:
+                st.metric(label="🌡️ Est. Water Temp", value=f"{estimated_water_temp:.1f}°F")
+            with m_col2:
+                st.metric(label="💨 Wind Velocity", value=f"{current['wind_speed_10m']} mph")
+            with m_col3:
+                clarity_icon = "🟢" if "Clear" in clarity_estimate else "🟡"
+                st.metric(label=f"{clarity_icon} Water Clarity", value=clarity_estimate.split(" ")[0])
                 
             st.markdown("---")
-            st.markdown(f"📡 **Live Hydrological Telemetry:** {live_gauge_data}")
-            st.markdown(f"🌊 **Calculated Water Clarity:** {clarity_estimate}")
-            st.markdown(f"📈 **Barometric Pressure Trend:** {trend} ({diff:+.2f} hPa)")
-            st.markdown(f"☁️ **Sky Conditions:** {cloud_word}")
+            st.info(f"📈 **Barometric Trend:** {trend} ({diff:+.2f} hPa) | ☁️ **Sky:** {cloud_word}")
+            
+            if "unavailable" not in live_gauge_data.lower() and "⚠️" not in live_gauge_data:
+                st.success(f"{live_gauge_data}")
+            else:
+                st.warning(f"{live_gauge_data}")
+
+        # 🗺️ SMOOTH INTERACTIVE i-BOATING BATHYMETRIC DEPTH FRAME
+        with st.expander("🗺️ Interactive 3D Bathymetric & Depth Chart", expanded=True):
+            chart_url = f"https://fishing-app.gpsnauticalcharts.com/i-boating-fishing-marine-navigation-charts-app.html?title={urllib.parse.quote(active_water_body)}#12/{lat}/{lon}"
+            st.components.v1.iframe(src=chart_url, height=450, scrolling=True)
 
         if execute_crew:
             inputs = {
@@ -265,8 +272,6 @@ if lat and lon:
                 'water_clarity': f"{clarity_estimate}. Additional live field gauge data shows: {live_gauge_data}"
             }
             with st.spinner("🤖 Consulting Fast AI Specialists via Groq..."):
-                # ⚙️ NOTE: Ensure your underlying crew.py definition also hooks into os.environ.get("GROQ_API_KEY") 
-                # or uses the default environment model if you configured it there!
                 result = FishingAgentApp().crew().kickoff(inputs=inputs)
                 raw_output = result.raw if hasattr(result, 'raw') else str(result)
                 st.success("🎯 Strategy Formulated!")
