@@ -53,7 +53,7 @@ env_choice = st.segmented_control(
     default="Freshwater"
 )
 
-# 🐟 STEP 2: CHOOSE TARGET SPECIES
+# 🐟 STEP 2: CHOOSE TARGET SPECIES (Updated for River Salmon & Local Ecosystems)
 st.subheader("🐟 Step 2: Choose Your Target Species")
 if env_choice == "Freshwater":
     fw_category = st.radio(
@@ -119,7 +119,7 @@ else: # 🔍 Suggest Local Hotspots Mode
     manual_city = st.text_input("📍 Enter your search City, State:", value="Tacoma, WA")
     location_name = manual_city
     
-    st.markdown("### ### 🛰️ Fast AI Scout Engine")
+    st.markdown("### 🛰️ Fast AI Scout Engine")
     if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
         with st.spinner(f"🤖 Mapping local hotspots near {location_name}..."):
             prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, or marine zones located near {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, explanations, or numbers."
@@ -255,22 +255,18 @@ if lat and lon:
             else:
                 st.warning(f"{live_gauge_data}")
 
-                # 🗺️ NATIVE INTERACTIVE SAT-MAP POSITION LOCK
-        with st.expander(f"🗺️ View Satellite Positioning Map for {active_water_body}", expanded=True):
-            # Create a simple mapping dictionary for Streamlit's engine
-            map_data = {"latitude": [lat], "longitude": [lon]}
+        # 🛰️ HIGH-RESOLUTION GOOGLE SAT MAP POSITION LOOKUP
+        with st.expander(f"🗺️ View Google Satellite Map for {active_water_body}", expanded=True):
+            # Formats standard coordinates safely into Google's open embed pipeline using satellite view
+            google_maps_url = f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=14&output=embed"
+            st.components.v1.iframe(src=google_maps_url, height=450, scrolling=False)
             
-            # Displays an interactive satellite-hybrid map layout with a placement pin
-            st.map(data=map_data, zoom=12, use_container_width=True)
-            
-            # Keep a direct external depth link layout as an optional fallback button
             encoded_search = urllib.parse.quote(f"{active_water_body} depth chart contour map")
             st.link_button(
                 f"🔍 Search External Bathymetric Charts for {active_water_body}", 
                 f"https://www.google.com/search?q={encoded_search}&tbm=isch",
                 use_container_width=True
             )
-
 
         if execute_crew:
             inputs = {
