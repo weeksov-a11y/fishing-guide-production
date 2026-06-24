@@ -155,10 +155,12 @@ else: # 🔍 Suggest Local Hotspots Mode
     selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options)
     active_water_body = selected_suggested
 
-# 🧭 DYNAMIC GEOLOCATION SEARCH ROUTER (Resolves lakes directly if selected)
+# 🧭 FIXED GEOLOCATION SEARCH LOOP (Clears coordinates to focus map on chosen lake)
+if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"]:
+    lat, lon = None, None  # Clear previous city coordinate memory to force look up on the chosen water body instead
+
 if not lat and active_water_body and location_name:
     try:
-        # If using hotspots or manual entry, combine the specific water body name with the city
         if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"] and "GPS Location" not in active_water_body:
             search_query = f"{active_water_body}, {location_name}"
         else:
@@ -169,7 +171,6 @@ if not lat and active_water_body and location_name:
         osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_query}&countrycodes=us&format=json&addressdetails=1&limit=1"
         osm_res = requests.get(osm_url, headers=headers).json()
         
-        # Fallback layer: If OpenStreetMap cannot locate the specific lake string, look up the base city boundaries instead
         if not osm_res or len(osm_res) == 0:
             encoded_city = urllib.parse.quote(location_name.strip())
             osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&countrycodes=us&format=json&addressdetails=1&limit=1"
