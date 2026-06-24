@@ -255,10 +255,22 @@ if lat and lon:
             else:
                 st.warning(f"{live_gauge_data}")
 
-        # 🗺️ SMOOTH INTERACTIVE i-BOATING BATHYMETRIC DEPTH FRAME
-        with st.expander("🗺️ Interactive 3D Bathymetric & Depth Chart", expanded=True):
-            chart_url = f"https://fishing-app.gpsnauticalcharts.com/i-boating-fishing-marine-navigation-charts-app.html?title={urllib.parse.quote(active_water_body)}#12/{lat}/{lon}"
-            st.components.v1.iframe(src=chart_url, height=450, scrolling=True)
+                # 🗺️ NATIVE INTERACTIVE SAT-MAP POSITION LOCK
+        with st.expander(f"🗺️ View Satellite Positioning Map for {active_water_body}", expanded=True):
+            # Create a simple mapping dictionary for Streamlit's engine
+            map_data = {"latitude": [lat], "longitude": [lon]}
+            
+            # Displays an interactive satellite-hybrid map layout with a placement pin
+            st.map(data=map_data, zoom=12, use_container_width=True)
+            
+            # Keep a direct external depth link layout as an optional fallback button
+            encoded_search = urllib.parse.quote(f"{active_water_body} depth chart contour map")
+            st.link_button(
+                f"🔍 Search External Bathymetric Charts for {active_water_body}", 
+                f"https://www.google.com/search?q={encoded_search}&tbm=isch",
+                use_container_width=True
+            )
+
 
         if execute_crew:
             inputs = {
