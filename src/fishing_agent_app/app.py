@@ -4,7 +4,9 @@ import os
 import requests
 import urllib.parse
 from datetime import datetime
-from streamlit_js_eval import streamlit_js_eval
+
+# 🛰️ Native Universal Hardware Geolocation Link
+from streamlit_geolocation import streamlit_geolocation
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -79,11 +81,11 @@ else:
 
 target_fish = st.pills("Tap your target fish:", options=species_options, default=default_species)
 
-# 📡 STEP 3: LOCATION SYSTEM
+# 📡 STEP 3: LOCATION SYSTEM (Universal Native Upgrade)
 st.subheader("📡 Step 3: Destination Routing Mode")
 routing_mode = st.radio(
     "How do you want to set your fishing location?",
-    options=["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name", "🛰️ Use My Mobile GPS Coordinates"],
+    options=["🛰️ Use My Live GPS Coordinates", "✍️ Enter a Specific Water Body By Name", "🔍 Suggest Local Hotspots"],
     horizontal=True
 )
 
@@ -92,22 +94,23 @@ water_context = ""
 display_summary = ""
 active_water_body = ""
 
-if routing_mode == "🛰️ Use My Mobile GPS Coordinates":
-    st.info("📡 Requesting satellite lock... If your browser blocks this, please use 'Suggest Local Hotspots' or enter location by name.")
-    gps_location = streamlit_js_eval(data_element='navigator.geolocation.getCurrentPosition', want_output=True, key='current_gps_click_v2')
+if routing_mode == "🛰️ Use My Live GPS Coordinates":
+    st.markdown("### 🛰️ Mobile Satellite Link")
+    st.info("Tap the button below to broadcast your phone's live coordinate data stream.")
     
-    if gps_location:
-        lat = float(gps_location['coords']['latitude'])
-        lon = float(gps_location['coords']['longitude'])
+    # Renders the native device permissions gatekeeper
+    location_data = streamlit_geolocation()
+    
+    if location_data and location_data.get('latitude') is not None:
+        lat = float(location_data['latitude'])
+        lon = float(location_data['longitude'])
         location_name = f"GPS: ({lat:.4f}, {lon:.4f})"
         active_water_body = "Current GPS Location"
         water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f}."
-        display_summary = f"🎯 Locked to Live Satellite GPS: {lat:.4f}, {lon:.4f}"
-        st.success(f"🔒 Mobile Satellite Link Active")
+        display_summary = f"🎯 Universal Position Locked: {lat:.4f}, {lon:.4f}"
+        st.success("🔒 Satellite Handshake Verified")
     else:
-        st.warning("⚠️ Mobile GPS access was denied or blocked by browser security permissions.")
-        fallback_city = st.text_input("📍 GPS Backup Mode: Enter your current City, State manually instead:", value="Portland, OR")
-        location_name = fallback_city
+        st.write("⏳ *Awaiting satellite link activation click above...*")
 
 elif routing_mode == "✍️ Enter a Specific Water Body By Name":
     user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Puyallup River")
@@ -156,7 +159,7 @@ if location_name and not lat:
         if osm_res and len(osm_res) > 0:
             lat = float(osm_res[0]["lat"])
             lon = float(osm_res[0]["lon"])
-            if routing_mode != "🛰️ Use My Mobile GPS Coordinates":
+            if routing_mode != "🛰️ Use My Live GPS Coordinates":
                 display_summary = f"🗺️ Target Water: **{active_water_body}** ({location_name})"
                 water_context = f"the specific body of water named {active_water_body} near {location_name}."
         else:
@@ -257,7 +260,6 @@ if lat and lon:
 
         # 🛰️ HIGH-RESOLUTION GOOGLE SAT MAP POSITION LOOKUP
         with st.expander(f"🗺️ View Google Satellite Map for {active_water_body}", expanded=True):
-            # Formats standard coordinates safely into Google's open embed pipeline using satellite view
             google_maps_url = f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=14&output=embed"
             st.components.v1.iframe(src=google_maps_url, height=450, scrolling=False)
             
