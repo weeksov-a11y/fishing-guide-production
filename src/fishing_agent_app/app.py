@@ -24,7 +24,7 @@ from fishing_agent_app.crew import FishingAgentApp
 # 🏎️ Route the AI Scouting Engine through Groq's ultra-fast free tier
 gemini_scout_model = LLM(
     model="groq/llama-3.1-8b-instant",
-    temperature=0.1  # Lowered temperature makes the output structure highly stable
+    temperature=0.1
 )
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
@@ -85,7 +85,7 @@ routing_mode = st.radio(
 lat, lon, location_name = None, None, ""
 water_context = ""
 display_summary = ""
-active_water_body = "Current GPS Location"
+active_water_body = ""
 
 if routing_mode == "🛰️ Use My Live GPS Coordinates":
     st.markdown("### 🛰️ Mobile Satellite Link")
@@ -97,7 +97,6 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
         lat = float(location_data['latitude'])
         lon = float(location_data['longitude'])
         
-        # 🗺️ REVERSE GEOCODING ENGINE: Convert pure coordinates into real City/State text
         try:
             headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
             rev_url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
@@ -107,7 +106,7 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
             state = address.get('state', 'Washington')
             location_name = f"{city}, {state}"
         except Exception:
-            location_name = "Tacoma, WA" # Fail-safe backup
+            location_name = "Tacoma, WA"
             
         active_water_body = "Current GPS Location"
         water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f} near {location_name}."
@@ -129,17 +128,15 @@ else: # 🔍 Suggest Local Hotspots Mode
     st.markdown("### 🛰️ Fast AI Scout Engine")
     if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
         with st.spinner(f"🤖 Mapping local hotspots near {location_name}..."):
-            # Robust prompt layout optimized for open-source Llama parsing
             prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, or marine zones located near {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers. Example format:\nLake Kapowsin\nAmerican Lake\nSpanaway Lake"
             try:
                 scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
                 raw_text = str(scout_res).strip()
                 
-                # 🔥 HARDENED PARSER: Strips away formatting quirks from Groq Llama output strings
                 cleaned_list = []
                 for line in raw_text.split("\n"):
-                    clean_line = re.sub(r'^[*-]\s*', '', line) # Strips bullet points
-                    clean_line = re.sub(r'^\d+[.)]\s*', '', clean_line) # Strips numbers like 1. or 2)
+                    clean_line = re.sub(r'^[*-]\s*', '', line)
+                    clean_line = re.sub(r'^\d+[.)]\s*', '', clean_line)
                     clean_line = clean_line.strip()
                     if clean_line:
                         cleaned_list.append(clean_line)
@@ -158,13 +155,26 @@ else: # 🔍 Suggest Local Hotspots Mode
     selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options)
     active_water_body = selected_suggested
 
-# 🧭 CORE GEOLOCATION RESOLUTION ENGINE
-if location_name and not lat:
+# 🧭 DYNAMIC GEOLOCATION SEARCH ROUTER (Resolves lakes directly if selected)
+if not lat and active_water_body and location_name:
     try:
-        encoded_city = urllib.parse.quote(location_name.strip())
+        # If using hotspots or manual entry, combine the specific water body name with the city
+        if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"] and "GPS Location" not in active_water_body:
+            search_query = f"{active_water_body}, {location_name}"
+        else:
+            search_query = location_name
+
+        encoded_query = urllib.parse.quote(search_query.strip())
         headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
-        osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&countrycodes=us&format=json&addressdetails=1&limit=1"
+        osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_query}&countrycodes=us&format=json&addressdetails=1&limit=1"
         osm_res = requests.get(osm_url, headers=headers).json()
+        
+        # Fallback layer: If OpenStreetMap cannot locate the specific lake string, look up the base city boundaries instead
+        if not osm_res or len(osm_res) == 0:
+            encoded_city = urllib.parse.quote(location_name.strip())
+            osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&countrycodes=us&format=json&addressdetails=1&limit=1"
+            osm_res = requests.get(osm_url, headers=headers).json()
+
         if osm_res and len(osm_res) > 0:
             lat = float(osm_res[0]["lat"])
             lon = float(osm_res[0]["lon"])
