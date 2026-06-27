@@ -302,7 +302,6 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
             st.session_state.scouted_lakes_dict[env_choice] = ["Mayfield Lake", "Merwin Lake", "Newman Lake"]
             st.session_state.last_scout_fingerprint = scout_fingerprint
             st.rerun()
-            
         else:
             with st.spinner(f"🤖 Auto-Scouting fresh local options near {base_anchor_city}..."):
                 prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, boat launches, or marine zones located within a scenic 50-100 mile driving radius of {base_anchor_city} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers."
@@ -317,28 +316,34 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
                 except Exception:
                     pass
 
-    if scout_fingerprint != st.session_state.get("last_scout_fingerprint"):
+    dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
+    if not dropdown_options:
         dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
-    else:
-        dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
-        if not dropdown_options:
-            dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
 
+    # 🔗 KEY BINDING: Force the selectbox to dynamically update a session state key immediately upon change
     selected_suggested = st.selectbox(
         "🎯 Tap to select one of your local suggested hotspots:", 
         options=dropdown_options, 
-        key=f"sb_hotspots_{routing_mode}_{env_choice}_{fw_category}"
+        key="active_hotspot_selection"
     )
 
-    if "⚡" in selected_suggested:
-        active_water_body = ""
-    else:
+    if selected_suggested and not "⚡" in selected_suggested:
         active_water_body = selected_suggested
+        st.session_state.last_water_body = selected_suggested
+    else:
+        active_water_body = st.session_state.get("last_water_body", dropdown_options[0] if "⚡" not in dropdown_options[0] else "")
+else:
+    # If using text input mode
+    if "user_water" in locals() and user_water.strip():
+        active_water_body = user_water.strip()
+        st.session_state.last_water_body = user_water.strip()
+    else:
+        active_water_body = st.session_state.get("last_water_body", "Riffe Lake")
 
 # =====================================================================
 # 🧭 RESOLVE TARGET COORDINATES (GEOLOCATION INTERCEPT PROCESSORS)
 # =====================================================================
-if active_water_body and active_water_body != "Current GPS Location":
+if active_water_body:
     try:
         query_body = re.sub(r"\(Seattle\)", "", active_water_body, flags=re.IGNORECASE).strip()
         
@@ -356,7 +361,6 @@ if active_water_body and active_water_body != "Current GPS Location":
             osm_res = get_coordinates_from_osm(loose_query)
 
         if osm_res:
-            # 🔒 Directly commit search coordinates to state memory
             st.session_state.lat = float(osm_res[0]["lat"])
             st.session_state.lon = float(osm_res[0]["lon"])
             
