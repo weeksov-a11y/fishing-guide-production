@@ -368,7 +368,6 @@ if lat and lon:
     try:
         # Pull from our ultra-fast weather caching block
         weather = fetch_cached_weather(lat, lon)
-       weather = fetch_cached_weather(lat, lon)
         
         # 🛡️ SAFETY CHECKPOINT: If API limits are throttling, inject backup data instead of crashing
         if not weather or 'current' not in weather:
@@ -394,12 +393,6 @@ if lat and lon:
             clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility"
             estimated_water_temp = (0.7 * (sum(weather['hourly']['temperature_2m'][:72]) / 72)) + (0.3 * current['temperature_2m'])
             current_air_temp = current['temperature_2m']
-        cloud_word = "Clear/Sunny" if current['cloud_cover'] < 20 else "Partially Cloudy" if current['cloud_cover'] < 60 else "Overcast"
-        
-        recent_rain = sum(weather['hourly'].get('precipitation', [0.0])[-12:])
-        clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility"
-        estimated_water_temp = (0.7 * (sum(weather['hourly']['temperature_2m'][:72]) / 72)) + (0.3 * current['temperature_2m'])
-        current_air_temp = current['temperature_2m']
 
         live_gauge_data = "Station data unavailable for static land locations."
         if env_choice == "Freshwater":
