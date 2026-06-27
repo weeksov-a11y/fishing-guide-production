@@ -41,93 +41,9 @@ if "scouted_lakes_dict" not in st.session_state:
     }
 
 # =====================================================================
-# 🎨 PREMIUM FISHBOX OVERHAUL: CONFIGURATION HEADER (STEPS 1 & 2)
+# 🛰️ STEP 1: LOCATION-FIRST ROUTING MODULE (THE ANCHOR)
 # =====================================================================
-
-# 💉 Inject Micro-Styles for Selection Pills to look like high-end chartplotter buttons
-st.markdown("""
-    <style>
-        div[data-testid="stPills"] button {
-            background-color: #0f172a !important;
-            color: #cbd5e1 !important;
-            border: 1px solid #334155 !important;
-            border-radius: 20px !important;
-            padding: 6px 14px !important;
-        }
-        div[data-testid="stPills"] button[aria-selected="true"] {
-            background-color: #22c55e !important;
-            color: #0f172a !important;
-            font-weight: bold !important;
-            border-color: #22c55e !important;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# Create a sleek, side-by-side configuration panel using modern columns
-config_col1, config_col2 = st.columns(2)
-
-with config_col1:
-    st.markdown("### 🌊 1. Environment")
-    env_choice = st.segmented_control(
-        "Select your system framework:",
-        options=["Freshwater", "Saltwater (Marine)"],
-        default="Freshwater",
-        label_visibility="collapsed" # Keeps the UI beautifully clean
-    )
-    
-    # Dynamic sub-text indicator under the choice
-    if env_choice == "Freshwater":
-        st.caption("🟢 Connected to USGS Streamflow & Lowland Telemetry networks.")
-    else:
-        st.caption("🔵 Connected to NOAA Marine Tidal Station arrays.")
-
-with config_col2:
-    st.markdown("### 🗺️ 2. System Type")
-    if env_choice == "Freshwater":
-        fw_category = st.segmented_control(
-            "Select water body type:", 
-            options=["🏞️ Rivers", "🏡 Lakes"], 
-            default="🏡 Lakes",
-            label_visibility="collapsed"
-        )
-    else:
-        st.markdown("<p style='color: #64748b; font-size: 14px; margin-top: 8px;'>⚓ Marine Tidal Zones Active</p>", unsafe_allow_html=True)
-        fw_category = "🏡 Lakes" # Default fallback placeholder for code safety
-
-st.markdown("---")
-
-# 🐟 TARGET SPECIES PANEL (Spans full width as clear interactive action buttons)
-st.markdown("### 🎣 3. Select Target Species")
-
-# Dynamically route species arrays based on the sleek layout above
-if env_choice == "Freshwater":
-    if fw_category == "🏞️ Rivers":
-        species_options = [
-            "King Salmon (Fall Chinook)", 
-            "Silver Salmon (Coho)", 
-            "Pink Salmon", 
-            "Chum Salmon", 
-            "Steelhead"
-        ]
-        default_species = "Silver Salmon (Coho)"
-    else:
-        species_options = ["Crappie", "Largemouth Bass", "Smallmouth Bass", "Rainbow Trout", "Perch", "Catfish"]
-        default_species = "Crappie"
-else:
-    species_options = ["Resident Coho Salmon", "Chinook Salmon", "Puget Sound Surfperch", "Flounder", "Spiny Dogfish", "Dabs", "Sole"]
-    default_species = "Resident Coho Salmon"
-
-# Render the custom-styled tactical target pills
-target_fish = st.pills("Choose your target profile:", options=species_options, default=default_species, label_visibility="collapsed")
-
-st.markdown("""
-    <div style='background-color: #0f172a; padding: 8px 12px; border-radius: 6px; border: 1px dashed #334155; margin-bottom: 20px;'>
-        <span style='color: #94a3b8; font-size: 13px;'>🎯 <b>Target Profile Locked:</b> AI Scout patterns optimized for tracking <b>{}</b>.</span>
-    </div>
-""".format(target_fish), unsafe_allow_html=True)
-
-# 📡 STEP 3: LOCATION SYSTEM
-st.subheader("📡 Step 3: Destination Routing Mode")
+st.subheader("📡 Step 1: Destination Routing Mode")
 routing_mode = st.radio(
     "How do you want to set your fishing location?",
     options=["🛰️ Use My Live GPS Coordinates", "✍️ Enter a Specific Water Body By Name", "🔍 Suggest Local Hotspots"],
@@ -176,11 +92,161 @@ elif routing_mode == "✍️ Enter a Specific Water Body By Name":
 else: # 🔍 Suggest Local Hotspots Mode
     manual_city = st.text_input("📍 Search Anchor City (Finds spots within a 50-100 mile radius):", value="Tacoma, WA")
     location_name = manual_city
-    
+    active_water_body = "Suggested Spot"
+
+# 🌍 IMMEDIATE DETERMINATION OF JURISDICTION STATE BASELINE
+input_state = "Oregon" if re.search(r"\b(or|oregon)\b", location_name, re.IGNORECASE) else "Washington"
+
+# 🧭 EXECUTING SEARCH STRING PROCESSING EARLY TO CAPTURE COORDINATES
+if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"]:
+    lat, lon = None, None  
+
+if not lat and active_water_body and location_name and active_water_body != "Suggested Spot":
+    try:
+        query_body = active_water_body.strip()
+        if re.search(r"kapow", query_body, re.IGNORECASE):
+            query_body = "Lake Kapowsin"
+        elif re.search(r"ohop", query_body, re.IGNORECASE):
+            query_body = "Lake Ohop"
+        elif re.search(r"\blake\b$", query_body, re.IGNORECASE):
+            base_name = re.sub(r"\blake\b$", "", query_body, flags=re.IGNORECASE).strip()
+            query_body = f"Lake {base_name}"
+            
+        search_query = f"{query_body}, {input_state}"
+        encoded_query = urllib.parse.quote(search_query.strip())
+        headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
+        osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_query}&countrycodes=us&format=json&addressdetails=1&limit=1"
+        osm_res = requests.get(osm_url, headers=headers).json()
+        
+        if not osm_res or len(osm_res) == 0:
+            encoded_city = urllib.parse.quote(location_name.strip())
+            osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&countrycodes=us&format=json&addressdetails=1&limit=1"
+            osm_res = requests.get(osm_url, headers=headers).json()
+
+        if osm_res and len(osm_res) > 0:
+            lat = float(osm_res[0]["lat"])
+            lon = float(osm_res[0]["lon"])
+            
+            try:
+                rev_url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
+                rev_res = requests.get(rev_url, headers=headers).json()
+                address = rev_res.get('address', {})
+                true_town = address.get('village', address.get('town', address.get('city', 'Local Area')))
+                true_state = address.get('state', input_state)
+                location_name = f"{true_town}, {true_state}"
+            except Exception:
+                pass 
+                
+            display_summary = f"🗺️ Target Water: **{active_water_body}** ({location_name})"
+            water_context = f"the specific body of water named {active_water_body} in {input_state}."
+        else:
+            lat, lon = 47.2529, -122.4443 
+    except Exception:
+        lat, lon = 47.2529, -122.4443
+
+# Resolve actual operating agency names based on derived positions
+if "oregon" in location_name.lower() or "or" in location_name.lower() or (lat and lat < 46.25):
+    detected_state = "Oregon"
+    agency_name = "ODFW"
+else:
+    detected_state = "Washington"
+    agency_name = "WDFW"
+
+st.markdown("---")
+
+# =====================================================================
+# 🎨 STEP 2 & 3: DYNAMIC CONFIGURATION WINDOWS (STATE JURISDICTION AWARE)
+# =====================================================================
+
+# 💉 Inject Micro-Styles for Selection Pills
+st.markdown("""
+    <style>
+        div[data-testid="stPills"] button {
+            background-color: #0f172a !important;
+            color: #cbd5e1 !important;
+            border: 1px solid #334155 !important;
+            border-radius: 20px !important;
+            padding: 6px 14px !important;
+        }
+        div[data-testid="stPills"] button[aria-selected="true"] {
+            background-color: #22c55e !important;
+            color: #0f172a !important;
+            font-weight: bold !important;
+            border-color: #22c55e !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+config_col1, config_col2 = st.columns(2)
+
+with config_col1:
+    st.markdown("### 🌊 2. Environment")
+    env_choice = st.segmented_control(
+        "Select your system framework:",
+        options=["Freshwater", "Saltwater (Marine)"],
+        default="Freshwater",
+        label_visibility="collapsed"
+    )
+    if env_choice == "Freshwater":
+        st.caption(f"🟢 USGS Data streams mapping to **{detected_state}** hydro networks.")
+    else:
+        st.caption(f"🔵 NOAA Marine array active for **{detected_state}** tidal zones.")
+
+with config_col2:
+    st.markdown("### 🗺️ 3. System Type")
+    if env_choice == "Freshwater":
+        fw_category = st.segmented_control(
+            "Select water body type:", 
+            options=["🏞️ Rivers", "🏡 Lakes"], 
+            default="🏡 Lakes",
+            label_visibility="collapsed"
+        )
+    else:
+        st.markdown(f"<p style='color: #22c55e; font-size: 14px; margin-top: 8px;'>⚓ {agency_name} Marine Management Units</p>", unsafe_allow_html=True)
+        fw_category = "🏡 Lakes"
+
+st.markdown("---")
+
+# 🎣 DYNAMIC SPECIES INTAKE SHAPED BY THE LOCALIZED STATE DETECTED ABOVE
+st.markdown(f"### 🎣 4. Select Target Species ({agency_name} Legal Catalog)")
+
+if detected_state == "Washington":
+    if env_choice == "Freshwater":
+        if fw_category == "🏞️ Rivers":
+            species_options = ["King Salmon (Fall Chinook)", "Silver Salmon (Coho)", "Pink Salmon", "Chum Salmon", "Steelhead", "Coastal Cutthroat"]
+            default_species = "Silver Salmon (Coho)"
+        else:
+            species_options = ["Crappie", "Largemouth Bass", "Smallmouth Bass", "Rainbow Trout", "Yellow Perch", "Kokanee", "Walleye"]
+            default_species = "Crappie"
+    else: # Saltwater WA
+        species_options = ["Resident Coho Salmon", "Blackmouth (Chinook)", "Puget Sound Surfperch", "Flounder", "Spiny Dogfish", "Lingcod", "Cabezon"]
+        default_species = "Resident Coho Salmon"
+else: # Oregon Jurisdiction State Mapping Loop
+    if env_choice == "Freshwater":
+        if fw_category == "🏞️ Rivers":
+            species_options = ["Spring Chinook", "Fall Chinook", "Coho Salmon", "Winter Steelhead", "Summer Steelhead", "White Sturgeon"]
+            default_species = "Coho Salmon"
+        else:
+            species_options = ["Largemouth Bass", "Smallmouth Bass", "Crappie", "Rainbow Trout", "Walleye", "Channel Catfish", "Bluegill"]
+            default_species = "Crappie"
+    else: # Saltwater OR
+        species_options = ["Ocean Chinook", "Ocean Coho", "Rockfish (Black/Blue)", "Lingcod", "Pacific Halibut", "Surfperch", "Greenling"]
+        default_species = "Ocean Coho"
+
+target_fish = st.pills("Choose your target profile:", options=species_options, default=default_species, label_visibility="collapsed")
+
+st.markdown(f"""
+    <div style='background-color: #0f172a; padding: 8px 12px; border-radius: 6px; border: 1px dashed #334155; margin-bottom: 20px;'>
+        <span style='color: #94a3b8; font-size: 13px;'>🎯 <b>Tactical Lock:</b> Targeting <b>{target_fish}</b> under <b>{agency_name}</b> regulatory jurisdiction rules.</span>
+    </div>
+""", unsafe_allow_html=True)
+
+# 🔍 LATE-EXECUTION DRIVEN SPOT SCOUTING FOR RADIUS PROMPTS
+if routing_mode == "🔍 Suggest Local Hotspots" and active_water_body == "Suggested Spot":
     st.markdown("### 🛰️ Fast AI Scout Engine")
     if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
         with st.spinner(f"🤖 Mapping local hotspots near {location_name}..."):
-            prompt = f"Provide exactly 5 real, specific local named {env_choice} fishing spots, lakes, boat launches, or marine zones located within a scenic 50-100 mile driving radius of {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 5 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers. Example format:\nLake Kapowsin\nAmerican Lake\nSpanaway Lake"
+            prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, boat launches, or marine zones located within a scenic 50-100 mile driving radius of {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers. Example format:\nLake Kapowsin\nAmerican Lake\nSpanaway Lake"
             try:
                 scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
                 raw_text = str(scout_res).strip()
@@ -207,86 +273,36 @@ else: # 🔍 Suggest Local Hotspots Mode
     selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options)
     active_water_body = selected_suggested
 
-# =====================================================================
-# 🧭 UPGRADED GEOLOCATION SEARCH LOOP (IMPLEMENTS STATEWIDE SCAN)
-# =====================================================================
-if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"]:
-    lat, lon = None, None  
-
-if not lat and active_water_body and location_name:
-    try:
-        # Step A: Parse input to safely determine the baseline fallback state framework
-        input_state = "Oregon" if re.search(r"\b(or|oregon)\b", location_name, re.IGNORECASE) else "Washington"
-        
-        if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"] and "GPS Location" not in active_water_body:
+    # Run execution parsing on final selected suggestion item context
+    if not lat and active_water_body:
+        try:
             query_body = active_water_body.strip()
-            
-            # Universal lake naming inversion cleaner
-            if re.search(r"kapow", query_body, re.IGNORECASE):
-                query_body = "Lake Kapowsin"
-            elif re.search(r"ohop", query_body, re.IGNORECASE):
-                query_body = "Lake Ohop"
-            elif re.search(r"\blake\b$", query_body, re.IGNORECASE):
+            if re.search(r"\blake\b$", query_body, re.IGNORECASE):
                 base_name = re.sub(r"\blake\b$", "", query_body, flags=re.IGNORECASE).strip()
                 query_body = f"Lake {base_name}"
-                
-            search_query = f"{query_body}, {input_state}"
-        else:
-            search_query = location_name
-
-        # Step B: Locate the lake anywhere inside the verified state boundary
-        encoded_query = urllib.parse.quote(search_query.strip())
-        headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
-        osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_query}&countrycodes=us&format=json&addressdetails=1&limit=1"
-        osm_res = requests.get(osm_url, headers=headers).json()
-        
-        # Safe fallback lookup check
-        if not osm_res or len(osm_res) == 0:
-            encoded_city = urllib.parse.quote(location_name.strip())
-            osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&countrycodes=us&format=json&addressdetails=1&limit=1"
-            osm_res = requests.get(osm_url, headers=headers).json()
-
-        if osm_res and len(osm_res) > 0:
-            lat = float(osm_res[0]["lat"])
-            lon = float(osm_res[0]["lon"])
             
-            # 🔄 YOUR RULE OVERRIDE: Reverse-geocode the lake coordinates to rewrite the true closest city!
-            try:
-                rev_url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
-                rev_res = requests.get(rev_url, headers=headers).json()
+            search_query = f"{query_body}, {detected_state}"
+            encoded_query = urllib.parse.quote(search_query.strip())
+            headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
+            osm_res = requests.get(f"https://nominatim.openstreetmap.org/search?q={encoded_query}&countrycodes=us&format=json&limit=1", headers=headers).json()
+            if osm_res:
+                lat = float(osm_res[0]["lat"])
+                lon = float(osm_res[0]["lon"])
+                
+                # Dynamic weather correction on the auto-scouted lake structure item position!
+                rev_res = requests.get(f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json", headers=headers).json()
                 address = rev_res.get('address', {})
                 true_town = address.get('village', address.get('town', address.get('city', 'Local Area')))
-                true_state = address.get('state', input_state)
-                
-                location_name = f"{true_town}, {true_state}"
-            except Exception:
-                pass 
-                
-            if routing_mode != "🛰️ Use My Live GPS Coordinates":
-                display_summary = f"🗺️ Target Water: **{active_water_body}** ({location_name})"
-                water_context = f"the specific body of water named {active_water_body} in {input_state}."
-        else:
-            lat, lon = 47.2529, -122.4443 
-    except Exception:
-        lat, lon = 47.2529, -122.4443
+                location_name = f"{true_town}, {detected_state}"
+        except Exception:
+            lat, lon = 47.2529, -122.4443
 
-# 🌲 JURISDICTION ROUTER
-if lat is not None:
-    if "oregon" in location_name.lower() or "or" in location_name.lower() or lat < 46.25:
-        detected_state = "Oregon"
-        agency_name = "ODFW"
-    else:
-        detected_state = "Washington"
-        agency_name = "WDFW"
-else:
-    detected_state = "Washington"
-    agency_name = "WDFW"
-
-# 🚀 RUN ANALYSIS BUTTON
-st.subheader("⚡ Step 4: Run Analysis")
+# =====================================================================
+# 🚀 STEP 5: RUN COMPILATION ENGINE & RENDER DASHBOARD UI
+# =====================================================================
+st.subheader("⚡ Step 5: Run Analysis")
 execute_crew = st.button("🚀 Generate Tactical Strategy Plan", type="primary", use_container_width=True)
 
-# 📋 SHOW LIVE STATS BELOW BUTTON
 if lat and lon:
     try:
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,cloud_cover,surface_pressure,wind_speed_10m&hourly=surface_pressure,precipitation,temperature_2m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto"
@@ -339,45 +355,14 @@ if lat and lon:
             except Exception:
                 live_gauge_data = "⚓ NOAA Tides: Marine telemetry link timed out."
 
-        # =====================================================================
-        # 🎨 PREMIUM FISHBOX-STYLE DASHBOARD UPGRADE
-        # =====================================================================
-        
-        # 💉 Inject Custom CSS for Premium Mobile UI Cards
-        st.markdown("""
-            <style>
-                .bite-card {
-                    background-color: #1e293b;
-                    border-radius: 12px;
-                    padding: 20px;
-                    border-left: 6px solid #22c55e;
-                    margin-bottom: 20px;
-                }
-                .bite-score {
-                    font-size: 32px;
-                    font-weight: bold;
-                    color: #22c55e;
-                }
-                .metric-box {
-                    background-color: #0f172a;
-                    padding: 12px;
-                    border-radius: 8px;
-                    text-align: center;
-                    border: 1px solid #334155;
-                }
-            </style>
-        """, unsafe_allow_html=True)
-
-        # 🧠 Calculate Dynamic Fishbox Bite Score
-        bite_score = 50  # Base line
+        # Premium Layout Render Calculations
+        bite_score = 50
         if "Rising" in trend: bite_score += 20
         elif "Stable" in trend: bite_score += 10
         else: bite_score -= 15  
-        
         if "Cloudy" in cloud_word or "Overcast" in cloud_word: bite_score += 15
         if current['wind_speed_10m'] < 10: bite_score += 15
         elif current['wind_speed_10m'] > 18: bite_score -= 20
-        
         bite_score = max(10, min(100, bite_score)) 
         
         if bite_score >= 75:
@@ -387,7 +372,7 @@ if lat and lon:
         else:
             card_border, score_color, rating_text = "#ef4444", "#ef4444", "🚨 TOUGH BITE WINDOW"
 
-        # 📊 1. HYPERLOCAL BITE FORECAST SUMMARY CARD
+        # 📊 1. FORECAST BADGE
         st.markdown(f"""
             <div class="bite-card" style="border-left-color: {card_border};">
                 <span style="color: #94a3b8; font-size: 14px; font-weight: bold; uppercase;">Live Solunar Analytics</span>
@@ -396,40 +381,30 @@ if lat and lon:
                     <div style="text-align: right; font-weight: bold; color: {score_color};">{rating_text}</div>
                 </div>
                 <p style="margin-top: 8px; margin-bottom: 0; font-size: 14px; color: #cbd5e1;">
-                    Barometric trends indicate a <b>{trend.lower()}</b> profile. Water visibility is evaluated as <b>{clarity_estimate.split(" ")[0].lower()}</b>.
+                    Barometric trends indicate a <b>{trend.lower()}</b> profile. Water visibility evaluates to <b>{clarity_estimate.split(" ")[0].lower()}</b>.
                 </p>
             </div>
         """, unsafe_allow_html=True)
 
-        # 🗺️ 2. CENTRAL HIGH-RESOLUTION MAPPING MODULE
+        # 🗺️ 2. NAVIGATION FRAME
         st.markdown(f"### 🗺️ Navigation Hub: {active_water_body}")
         google_maps_url = f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=14&output=embed"
         st.iframe(src=google_maps_url, height=400)
         
-        # Action Bar row sitting directly under map frame
-        m_btn1, m_btn2 = st.columns(2)
-        with m_btn1:
+        m_col1, m_col2 = st.columns(2)
+        with m_col1:
             encoded_search = urllib.parse.quote(f"{active_water_body} depth chart contour map")
-            st.link_button(
-                "🔍 Search Bathymetric Charts", 
-                f"https://www.google.com/search?q={encoded_search}&tbm=isch",
-                use_container_width=True
-            )
-        with m_btn2:
-            st.button("📍 Log Secret Waypoint Coordinates", use_container_width=True, disabled=True, help="Waypoint logging database module coming in next phase!")
+            st.link_button("🔍 Search Bathymetric Charts", f"https://www.google.com/search?q={encoded_search}&tbm=isch", use_container_width=True)
+        with m_col2:
+            st.button("📍 Log Secret Waypoint Coordinates", use_container_width=True, disabled=True)
 
         st.markdown("---")
 
-        # 📈 3. COMPACT TABBED DATA INTERFACE
-        tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs([
-            "🌦️ Atmosphere", 
-            "🌊 Water Gauges", 
-            "🎣 Tactical Strategy", 
-            "🚨 Game Rules"
-        ])
+        # 📈 3. COMPACT TABBED INTERFACE LAYOUT
+        tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs(["🌦️ Atmosphere", "🌊 Water Gauges", "🎣 Tactical Strategy", "🚨 Game Rules"])
 
         with tab_cond:
-            st.caption(f"🗺️ Base Coordinates Locked: {lat:.4f}, {lon:.4f} | Jurisdiction: {detected_state}")
+            st.caption(f"🗺️ Position Fixed: {lat:.4f}, {lon:.4f} | System Zone Context: {location_name}")
             w_col1, w_col2, w_col3 = st.columns(3)
             with w_col1:
                 st.metric(label="🌡️ Calculated Water Temp", value=f"{estimated_water_temp:.1f}°F")
@@ -438,8 +413,7 @@ if lat and lon:
                 st.metric(label="💨 Wind Velocity", value=f"{current['wind_speed_10m']} mph")
             with w_col3:
                 st.metric(label="☁️ Sky Density Cover", value=cloud_word)
-            
-            st.info(f"📈 **Barometric Pressure Micro-Changes:** {trend} ({diff:+.2f} hPa relative to baseline)")
+            st.info(f"📈 **Barometric Micro-Changes:** {trend} ({diff:+.2f} hPa relative to baseline)")
 
         with tab_hydro:
             st.markdown("#### 🛰️ Real-Time Streamflow & Marine Station Feeds")
@@ -447,49 +421,43 @@ if lat and lon:
                 st.success(f"{live_gauge_data}")
             else:
                 st.warning(f"{live_gauge_data}")
-            st.caption("Environmental telemetry networks compile direct updates every 15-60 minutes.")
 
         with tab_strategy:
             if execute_crew:
                 inputs = {
                     'target_fish': target_fish,
-                    'environment': water_context,  
+                    'environment': water_context if water_context else f"fishing target body near {location_name}",  
                     'current_state': detected_state,
                     'water_temp': f"{estimated_water_temp:.1f}°F",  
                     'barometric_pressure': trend, 
                     'cloud_cover': cloud_word,
                     'wind_speed': f"{current['wind_speed_10m']} mph",
-                    'water_clarity': f"{clarity_estimate}. Additional live field gauge data shows: {live_gauge_data}"
+                    'water_clarity': f"{clarity_estimate}. Field data: {live_gauge_data}"
                 }
-                with st.spinner("🤖 Debating tactics with Groq AI Crew specialists..."):
+                with st.spinner("🤖 Compiling rigging tactics with AI Crew Specialists..."):
                     result = FishingAgentApp().crew().kickoff(inputs=inputs)
-                    raw_output = result.raw if hasattr(result, 'raw') else str(result)
-                    st.session_state.current_raw_output = raw_output
+                    st.session_state.current_raw_output = result.raw if hasattr(result, 'raw') else str(result)
                     st.success("🎯 Strategy Formulated!")
             
             if "current_raw_output" in st.session_state:
                 raw_out = st.session_state.current_raw_output
                 if "### 🎣 Tactical Strategy Plan" in raw_out:
-                    parts = raw_out.split("### 🎣 Tactical Strategy Plan")
-                    tactical_section = parts[1].strip()
-                    st.markdown(tactical_section)
+                    st.markdown(raw_out.split("### 🎣 Tactical Strategy Plan")[1].strip())
                 else:
                     st.markdown(raw_out)
             else:
-                st.info("💡 Tap the **'Generate Tactical Strategy Plan'** button above to compile your personalized rigging, depth patterns, and structural targets framework.")
+                st.info("💡 Tap **'Generate Tactical Strategy Plan'** above to compile custom rigging patterns.")
 
         with tab_rules:
             st.markdown(f"#### 🚨 Regional Legal Compliance Guardrails ({agency_name})")
             if "current_raw_output" in st.session_state:
                 raw_out = st.session_state.current_raw_output
                 if "### 🎣 Tactical Strategy Plan" in raw_out:
-                    parts = raw_out.split("### 🎣 Tactical Strategy Plan")
-                    compliance_section = parts[0].replace("### 🚨 Regional Legal Compliance Guardrails & Location Suggestions", "").strip()
-                    st.markdown(compliance_section)
+                    st.markdown(raw_out.split("### 🎣 Tactical Strategy Plan")[0].replace("### 🚨 Regional Legal Compliance Guardrails & Location Suggestions", "").strip())
                 else:
-                    st.write("Review localized regulations on the primary strategy panel output format.")
+                    st.write("Review localized regulatory parameters on the primary console output data block.")
             else:
-                st.warning(f"Verify emergency closure rules and standard limit restrictions on your local **{agency_name}** dashboard before making your first cast.")
+                st.warning(f"Verify standard limit definitions on your native **{agency_name}** regional dashboard before making your first cast.")
 
     except Exception as err:
         st.error(f"Failed to compile weather data stream: {err}")
