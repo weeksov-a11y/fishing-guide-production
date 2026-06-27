@@ -316,7 +316,7 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
                 except Exception:
                     pass
 
-   dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
+    dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
     if not dropdown_options:
         dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
 
@@ -334,13 +334,13 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
         st.session_state.last_water_body = selected_suggested
     else:
         active_water_body = st.session_state.get("last_water_body", dropdown_options[0] if "⚡" not in dropdown_options[0] else "")
+else:
     # If using text input mode
     if "user_water" in locals() and user_water.strip():
         active_water_body = user_water.strip()
         st.session_state.last_water_body = user_water.strip()
     else:
         active_water_body = st.session_state.get("last_water_body", "Riffe Lake")
-
 # =====================================================================
 # 🧭 RESOLVE TARGET COORDINATES (GEOLOCATION INTERCEPT PROCESSORS)
 # =====================================================================
