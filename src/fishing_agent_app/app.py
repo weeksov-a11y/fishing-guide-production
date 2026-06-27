@@ -257,7 +257,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # 🔍 LATE-EXECUTION DRIVEN SPOT SCOUTING FOR RADIUS PROMPTS
-if routing_mode == "🔍 Suggest Local Hotspots" and active_water_body == "Suggested Spot":
+if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coordinates"]:
     st.markdown("### 🛰️ Fast AI Scout Engine")
     if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
         with st.spinner(f"🤖 Mapping local hotspots near {location_name}..."):
