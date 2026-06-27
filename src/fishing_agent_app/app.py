@@ -256,68 +256,159 @@ if lat and lon:
             except Exception:
                 live_gauge_data = "⚓ NOAA Tides: Marine telemetry link timed out."
 
-        # 📱 SMOOTH POLISHED METRICS ROW INTERFACE
-        with st.expander(f"🌦️ Real-Time Conditions: {active_water_body}", expanded=True):
-            st.caption(f"🗺️ Jurisdiction: {detected_state} ({agency_name})")
-            st.markdown(display_summary)
-            
-            m_col1, m_col2, m_col3 = st.columns(3)
-            with m_col1:
-                st.metric(label="🌡️ Est. Water Temp", value=f"{estimated_water_temp:.1f}°F")
-            with m_col2:
+# =====================================================================
+        # 🎨 PREMIUM FISHBOX-STYLE DASHBOARD UPGRADE
+        # =====================================================================
+        
+        # 💉 Inject Custom CSS for Premium Mobile UI Cards
+        st.markdown("""
+            <style>
+                .bite-card {
+                    background-color: #1e293b;
+                    border-radius: 12px;
+                    padding: 20px;
+                    border-left: 6px solid #22c55e;
+                    margin-bottom: 20px;
+                }
+                .bite-score {
+                    font-size: 32px;
+                    font-weight: bold;
+                    color: #22c55e;
+                }
+                .metric-box {
+                    background-color: #0f172a;
+                    padding: 12px;
+                    border-radius: 8px;
+                    text-align: center;
+                    border: 1px solid #334155;
+                }
+            </style>
+        """, unsafe_scale=True)
+
+        # 🧠 Calculate Dynamic Fishbox Bite Score
+        # Logic: Stable/rising pressure + overcast/partial clouds + low wind = Ideal bite windows
+        bite_score = 50  # Base line
+        if "Rising" in trend: bite_score += 20
+        elif "Stable" in trend: bite_score += 10
+        else: bite_score -= 15  # Rapidly dropping pressure shuts down bites
+        
+        if "Cloudy" in cloud_word or "Overcast" in cloud_word: bite_score += 15
+        if current['wind_speed_10m'] < 10: bite_score += 15
+        elif current['wind_speed_10m'] > 18: bite_score -= 20
+        
+        bite_score = max(10, min(100, bite_score)) # Keep bounds between 10% and 100%
+        
+        # Set badge colors based on score tiers
+        if bite_score >= 75:
+            card_border, score_color, rating_text = "#22c55e", "#22c55e", "🏆 EXCELLENT CONDITIONS"
+        elif bite_score >= 45:
+            card_border, score_color, rating_text = "#eab308", "#eab308", "🟡 FAIR CONDITIONS"
+        else:
+            card_border, score_color, rating_text = "#ef4444", "#ef4444", "🚨 TOUGH BITE WINDOW"
+
+        # 📊 1. HYPERLOCAL BITE FORECAST SUMMARY CARD
+        st.markdown(f"""
+            <div class="bite-card" style="border-left-color: {card_border};">
+                <span style="color: #94a3b8; font-size: 14px; font-weight: bold; uppercase;">Live Solunar Analytics</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+                    <div class="bite-score" style="color: {score_color};">{bite_score}%</div>
+                    <div style="text-align: right; font-weight: bold; color: {score_color};">{rating_text}</div>
+                </div>
+                <p style="margin-top: 8px; margin-bottom: 0; font-size: 14px; color: #cbd5e1;">
+                    Barometric trends indicate a <b>{trend.lower()}</b> profile. Water visibility is evaluated as <b>{clarity_estimate.split(" ")[0].lower()}</b>.
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # 🗺️ 2. CENTRAL HIGH-RESOLUTION MAPPING MODULE
+        st.markdown(f"### 🗺️ Navigation Hub: {active_water_body}")
+        google_maps_url = f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=14&output=embed"
+        st.components.v1.iframe(src=google_maps_url, height=400, scrolling=False)
+        
+        # Action Bar row sitting directly under map frame
+        m_btn1, m_btn2 = st.columns(2)
+        with m_btn1:
+            encoded_search = urllib.parse.quote(f"{active_water_body} depth chart contour map")
+            st.link_button(
+                "🔍 Search Bathymetric Charts", 
+                f"https://www.google.com/search?q={encoded_search}&tbm=isch",
+                use_container_width=True
+            )
+        with m_btn2:
+            st.button("📍 Log Secret Waypoint Coordinates", use_container_width=True, disabled=True, help="Waypoint logging database module coming in next phase!")
+
+        st.markdown("---")
+
+        # 📈 3. COMPACT TABBED DATA INTERFACE (Replaces long expander lists)
+        tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs([
+            "🌦️ Atmosphere", 
+            "🌊 Water Gauges", 
+            "🎣 Tactical Strategy", 
+            "🚨 Game Rules"
+        ])
+
+        with tab_cond:
+            st.caption(f"🗺️ Base Coordinates Locked: {lat:.4f}, {lon:.4f} | Jurisdiction: {detected_state}")
+            w_col1, w_col2, w_col3 = st.columns(3)
+            with w_col1:
+                st.metric(label="🌡️ Calculated Water Temp", value=f"{estimated_water_temp:.1f}°F")
+            with w_col2:
                 st.metric(label="💨 Wind Velocity", value=f"{current['wind_speed_10m']} mph")
-            with m_col3:
-                clarity_icon = "🟢" if "Clear" in clarity_estimate else "🟡"
-                st.metric(label=f"{clarity_icon} Water Clarity", value=clarity_estimate.split(" ")[0])
-                
-            st.markdown("---")
-            st.info(f"📈 **Barometric Trend:** {trend} ({diff:+.2f} hPa) | ☁️ **Sky:** {cloud_word}")
+            with w_col3:
+                st.metric(label="☁️ Sky Density Cover", value=cloud_word)
             
+            st.info(f"📈 **Barometric Pressure Micro-Changes:** {trend} ({diff:+.2f} hPa relative to baseline)")
+
+        with tab_hydro:
+            st.markdown("#### 🛰️ Real-Time Streamflow & Marine Station Feeds")
             if "unavailable" not in live_gauge_data.lower() and "⚠️" not in live_gauge_data:
                 st.success(f"{live_gauge_data}")
             else:
                 st.warning(f"{live_gauge_data}")
+            st.caption("Environmental telemetry networks compile direct updates every 15-60 minutes.")
 
-        # 🛰️ HIGH-RESOLUTION GOOGLE SAT MAP POSITION LOOKUP
-        with st.expander(f"🗺️ View Google Satellite Map for {active_water_body}", expanded=True):
-            google_maps_url = f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=14&output=embed"
-            st.components.v1.iframe(src=google_maps_url, height=450, scrolling=False)
+        with tab_strategy:
+            if execute_crew:
+                inputs = {
+                    'target_fish': target_fish,
+                    'environment': water_context,  
+                    'current_state': detected_state,
+                    'water_temp': f"{estimated_water_temp:.1f}°F",  
+                    'barometric_pressure': trend, 
+                    'cloud_cover': cloud_word,
+                    'wind_speed': f"{current['wind_speed_10m']} mph",
+                    'water_clarity': f"{clarity_estimate}. Additional live field gauge data shows: {live_gauge_data}"
+                }
+                with st.spinner("🤖 Debating tactics with Groq AI Crew specialists..."):
+                    result = FishingAgentApp().crew().kickoff(inputs=inputs)
+                    raw_output = result.raw if hasattr(result, 'raw') else str(result)
+                    st.session_state.current_raw_output = raw_output
+                    st.success("🎯 Strategy Formulated!")
             
-            encoded_search = urllib.parse.quote(f"{active_water_body} depth chart contour map")
-            st.link_button(
-                f"🔍 Search External Bathymetric Charts for {active_water_body}", 
-                f"https://www.google.com/search?q={encoded_search}&tbm=isch",
-                use_container_width=True
-            )
-
-        if execute_crew:
-            inputs = {
-                'target_fish': target_fish,
-                'environment': water_context,  
-                'current_state': detected_state,
-                'water_temp': f"{estimated_water_temp:.1f}°F",  
-                'barometric_pressure': trend, 
-                'cloud_cover': cloud_word,
-                'wind_speed': f"{current['wind_speed_10m']} mph",
-                'water_clarity': f"{clarity_estimate}. Additional live field gauge data shows: {live_gauge_data}"
-            }
-            with st.spinner("🤖 Consulting Fast AI Specialists via Groq..."):
-                result = FishingAgentApp().crew().kickoff(inputs=inputs)
-                raw_output = result.raw if hasattr(result, 'raw') else str(result)
-                st.success("🎯 Strategy Formulated!")
-                
-                if "### 🎣 Tactical Strategy Plan" in raw_output:
-                    parts = raw_output.split("### 🎣 Tactical Strategy Plan")
-                    compliance_section = parts[0].replace("### 🚨 Regional Legal Compliance Guardrails & Location Suggestions", "").strip()
+            # Persist output layout structure across state refreshes cleanly
+            if "current_raw_output" in st.session_state:
+                raw_out = st.session_state.current_raw_output
+                if "### 🎣 Tactical Strategy Plan" in raw_out:
+                    parts = raw_out.split("### 🎣 Tactical Strategy Plan")
                     tactical_section = parts[1].strip()
-                    
-                    with st.expander(f"🚨 {agency_name} Legal Compliance Guardrails & Location Data", expanded=True):
-                        st.markdown(compliance_section)
-                    with st.expander("🎣 Tactical Strategy Plan", expanded=True):
-                        st.markdown(tactical_section)
+                    st.markdown(tactical_section)
                 else:
-                    with st.expander("📋 View Generated Strategy Details", expanded=True):
-                        st.markdown(raw_output)
+                    st.markdown(raw_out)
+            else:
+                st.info("💡 Tap the **'Generate Tactical Strategy Plan'** button above to compile your personalized rigging, depth patterns, and structural targets framework.")
+
+        with tab_rules:
+            st.markdown(f"#### 🚨 Regional Legal Compliance Guardrails ({agency_name})")
+            if "current_raw_output" in st.session_state:
+                raw_out = st.session_state.current_raw_output
+                if "### 🎣 Tactical Strategy Plan" in raw_out:
+                    parts = raw_out.split("### 🎣 Tactical Strategy Plan")
+                    compliance_section = parts[0].replace("### 🚨 Regional Legal Compliance Guardrails & Location Suggestions", "").strip()
+                    st.markdown(compliance_section)
+                else:
+                    st.write("Review localized regulations on the primary strategy panel output format.")
+            else:
+                st.warning(f"Verify emergency closure rules and standard limit restrictions on your local **{agency_name}** dashboard before making your first cast.")
 
     except Exception as err:
         st.error(f"Failed to compile weather data stream: {err}")
