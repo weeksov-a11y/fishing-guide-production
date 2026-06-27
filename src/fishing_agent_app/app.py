@@ -498,11 +498,12 @@ if lat and lon:
                 st.session_state.map_view = {"center": [lat, lon], "zoom": 13}
                 st.session_state.last_water_body = active_water_body
 
-            # 🚀 ULTRA-LIGHTWEIGHT BASE MAP FRAME (Wipes out zoom lag entirely)
+# 🚀 HIGH-CONTRAST GOOGLE MAPS ENGINE (Clear water boundaries, crisp text, zero lag)
             m = folium.Map(
                 location=st.session_state.map_view["center"], 
                 zoom_start=st.session_state.map_view["zoom"],
-                tiles="OpenStreetMap"
+                tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+                attr="Google Standard Maps"
             )
 
             try:
