@@ -486,7 +486,7 @@ if lat and lon:
             </div>
         """, unsafe_allow_html=True)
 
-        # =====================================================================
+# =====================================================================
         # 🗺️ GRAPHICAL GRID & PREMIUM INTERACTIVE LOGGING CORE
         # =====================================================================
         m_col1, m_col2 = st.columns([2, 1])
@@ -498,7 +498,7 @@ if lat and lon:
                 st.session_state.map_view = {"center": [lat, lon], "zoom": 13}
                 st.session_state.last_water_body = active_water_body
 
-            # 🚀 LIGHTWEIGHT BASE MAP FRAME (Wipes out zoom lag entirely)
+            # 🚀 ULTRA-LIGHTWEIGHT BASE MAP FRAME (Wipes out zoom lag entirely)
             m = folium.Map(
                 location=st.session_state.map_view["center"], 
                 zoom_start=st.session_state.map_view["zoom"],
@@ -520,8 +520,14 @@ if lat and lon:
 
             m.add_child(folium.LatLngPopup())
             
-            map_data = st_folium(m, width=750, height=450, key=f"stable_map_{active_water_body}")
-
+            # 🏎️ HIGH-PERFORMANCE FILTERS: Only reload the page on explicit pin-drop clicks
+            map_data = st_folium(
+                m, 
+                width=750, 
+                height=450, 
+                key=f"stable_map_{active_water_body}",
+                returned_objects=["last_clicked"]
+            )
             if map_data.get("center"):
                 st.session_state.map_view["center"] = [map_data["center"]["lat"], map_data["center"]["lng"]]
                 st.session_state.map_view["zoom"] = map_data["zoom"]
