@@ -226,13 +226,15 @@ if not lat and active_water_body and location_name:
                 base_name = re.sub(r"\blake\b$", "", query_body, flags=re.IGNORECASE).strip()
                 query_body = f"Lake {base_name}"
                 
-            search_query = f"{query_body}, {detected_state}"
+            # 🚀 THE FIX: Force search by State only, completely stripping out the restrictive city input text
+            search_query = f"{query_body}, Washington"
         else:
             search_query = location_name
 
         encoded_query = urllib.parse.quote(search_query.strip())
         headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
-        osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_query}&countrycodes=us&format=json&addressdetails=1&limit=1"
+        # Explicitly passing 'state=Washington' as a structured parameter instead of a loose string query
+        osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_query}&state=Washington&countrycodes=us&format=json&addressdetails=1&limit=1"
         osm_res = requests.get(osm_url, headers=headers).json()
         
         # Fallback to city center only if the statewide water body query completely fails
@@ -246,13 +248,13 @@ if not lat and active_water_body and location_name:
             lon = float(osm_res[0]["lon"])
             if routing_mode != "🛰️ Use My Live GPS Coordinates":
                 display_summary = f"🗺️ Target Water: **{active_water_body}** ({location_name})"
-                water_context = f"the specific body of water named {active_water_body} in {detected_state}."
+                water_context = f"the specific body of water named {active_water_body} in Washington."
         else:
             # Standard safety backup pin if everything fails
             lat, lon = 47.2529, -122.4443 
     except Exception:
         lat, lon = 47.2529, -122.4443
-
+        
 # 🌲 JURISDICTION ROUTER
 if lat is not None:
     if "oregon" in location_name.lower() or "or" in location_name.lower() or lat < 46.25:
