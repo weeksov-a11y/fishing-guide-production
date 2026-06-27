@@ -355,8 +355,10 @@ if active_water_body and active_water_body != "Current GPS Location":
             osm_res = get_coordinates_from_osm(loose_query)
 
         if osm_res:
+            # 🔒 Directly commit search coordinates to state memory
             st.session_state.lat = float(osm_res[0]["lat"])
             st.session_state.lon = float(osm_res[0]["lon"])
+            
             try:
                 rev_res = get_address_from_gps(st.session_state.lat, st.session_state.lon)
                 address = rev_res.get('address', {})
@@ -378,22 +380,21 @@ else:
             st.session_state.location_name = base_anchor_city
 
 # 🗺️ Hardcoded Target Overrides (For Specific Verified Coordinates)
-if "wallenpaupack" in active_water_body.lower():
-    st.session_state.lat, st.session_state.lon = 41.4201, -75.2333
-    st.session_state.location_name = "Pocono Mountains, PA"
-elif "green lake" in active_water_body.lower() and "seattle" in base_anchor_city.lower():
-    st.session_state.lat, st.session_state.lon = 47.6797, -122.3256
-    st.session_state.location_name = "Seattle, WA"
-elif "elmo" in active_water_body.lower() and ("montana" in input_state.lower() or "mt" in input_state.lower() or "falls" in base_anchor_city.lower()):
-    # Perfect high-precision locking onto Lake Elmo, MT
-    st.session_state.lat, st.session_state.lon = 45.8410, -108.4794
-    st.session_state.location_name = "Billings/Great Falls Region, MT"
+if active_water_body:
+    if "wallenpaupack" in active_water_body.lower():
+        st.session_state.lat, st.session_state.lon = 41.4201, -75.2333
+        st.session_state.location_name = "Pocono Mountains, PA"
+    elif "green lake" in active_water_body.lower() and "seattle" in base_anchor_city.lower():
+        st.session_state.lat, st.session_state.lon = 47.6797, -122.3256
+        st.session_state.location_name = "Seattle, WA"
+    elif "elmo" in active_water_body.lower():
+        st.session_state.lat, st.session_state.lon = 45.8410, -108.4794
+        st.session_state.location_name = "Billings/Great Falls Region, MT"
 
-# Pull the finalized active coordinates out of secure memory storage for layout mapping execution
+# 🧲 Pull the active variables out of session state directly for the rest of the app execution
 lat = st.session_state.lat
 lon = st.session_state.lon
 location_name = st.session_state.location_name
-
 check_str = location_name.lower() if ("location_name" in locals() and location_name != "") else base_anchor_city.lower()
 detected_state = "Texas" if "texas" in check_str or "tx" in check_str else "Oregon" if "oregon" in check_str or "or" in check_str or (lat < 46.25 and "washington" not in check_str and "pennsylvania" not in check_str) else "Pennsylvania" if "pennsylvania" in check_str or "pa" in check_str else "Washington" if "washington" in check_str or "wa" in check_str else input_state
 agency_name = "TPWD" if detected_state == "Texas" else "ODFW" if detected_state == "Oregon" else "PFBC" if detected_state == "Pennsylvania" else "WDFW" if detected_state == "Washington" else f"{detected_state} Wildlife"
