@@ -195,8 +195,27 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
                 except Exception:
                     pass
 
-    default_spots = ["Spanaway Lake", "American Lake", "Lake Kapowsin"] if env_choice == "Freshwater" else ["Marine Area 11 (Tacoma)", "Marine Area 13 (Olympia)", "Point Defiance Pier"]
-    dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, default_spots)
+# ✅ NEW METHOD: Dynamic Instructional Prompts (Saves Data & Cleans UI)
+if scout_fingerprint != st.session_state.get("last_scout_fingerprint"):
+    # If the setup has changed but the auto-scout loop hasn't run its rerun yet, show an empty instructional state
+    dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
+else:
+    # Otherwise, cleanly pull the high-performance targeted results out of memory
+    dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
+    if not dropdown_options:
+        dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
+
+selected_suggested = st.selectbox(
+    "🎯 Tap to select one of your local suggested hotspots:", 
+    options=dropdown_options, 
+    key=f"sb_hotspots_{routing_mode}"
+)
+
+# Safe structural breakout protection block
+if "⚡" in selected_suggested:
+    active_water_body = ""
+else:
+    active_water_body = selected_suggested
     
     selected_suggested = st.selectbox(
         "🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options, key=f"sb_hotspots_{routing_mode}"
