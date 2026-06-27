@@ -385,7 +385,7 @@ if lat and lon:
         with m_btn2:
             st.button("📍 Log Secret Waypoint Coordinates", use_container_width=True, disabled=True, help="Waypoint logging database module coming in next phase!")
 
-        st.markdown("---")
+st.markdown("---")
 
         # 📈 3. COMPACT TABBED DATA INTERFACE
         tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs([
@@ -395,11 +395,10 @@ if lat and lon:
             "🚨 Game Rules"
         ])
 
-    with tab_cond:
+        with tab_cond:
             st.caption(f"🗺️ Base Coordinates Locked: {lat:.4f}, {lon:.4f} | Jurisdiction: {detected_state}")
             w_col1, w_col2, w_col3 = st.columns(3)
             with w_col1:
-                # Displays both critical temperatures in a single, clean stack
                 st.metric(label="🌡️ Calculated Water Temp", value=f"{estimated_water_temp:.1f}°F")
                 st.metric(label="🌤️ Outside Air Temp", value=f"{current['temperature_2m']:.1f}°F")
             with w_col2:
