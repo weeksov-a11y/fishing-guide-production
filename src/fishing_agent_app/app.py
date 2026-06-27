@@ -226,18 +226,38 @@ if not lat and active_water_body and location_name:
                 base_name = re.sub(r"\blake\b$", "", query_body, flags=re.IGNORECASE).strip()
                 query_body = f"Lake {base_name}"
                 
-            # 🚀 THE FIX: Force search by State only, completely stripping out the restrictive city input text
-            search_query = f"{query_body}, Washington"
+# 🧭 FIXED GEOLOCATION SEARCH LOOP WITH STATEWIDE ROUTING & DYNAMIC WEATHER CORRECTION
+if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"]:
+    lat, lon = None, None  
+
+if not lat and active_water_body and location_name:
+    try:
+        # Extract the state from the user's input box text (e.g., "Tacoma Wa" -> "Washington")
+        input_state = "Oregon" if re.search(r"\b(or|oregon)\b", location_name, re.IGNORECASE) else "Washington"
+        
+        if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"] and "GPS Location" not in active_water_body:
+            query_body = active_water_body.strip()
+            
+            # Universal lake naming inversion cleaner
+            if re.search(r"kapow", query_body, re.IGNORECASE):
+                query_body = "Lake Kapowsin"
+            elif re.search(r"ohop", query_body, re.IGNORECASE):
+                query_body = "Lake Ohop"
+            elif re.search(r"\blake\b$", query_body, re.IGNORECASE):
+                base_name = re.sub(r"\blake\b$", "", query_body, flags=re.IGNORECASE).strip()
+                query_body = f"Lake {base_name}"
+                
+            search_query = f"{query_body}, {input_state}"
         else:
             search_query = location_name
 
+        # 🛰️ Call Forward Geocoding to locate the lake anywhere inside the verified state
         encoded_query = urllib.parse.quote(search_query.strip())
         headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
-        # Explicitly passing 'state=Washington' as a structured parameter instead of a loose string query
-        osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_query}&state=Washington&countrycodes=us&format=json&addressdetails=1&limit=1"
+        osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_query}&countrycodes=us&format=json&addressdetails=1&limit=1"
         osm_res = requests.get(osm_url, headers=headers).json()
         
-        # Fallback to city center only if the statewide water body query completely fails
+        # Fallback to loose search if explicit query misses
         if not osm_res or len(osm_res) == 0:
             encoded_city = urllib.parse.quote(location_name.strip())
             osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&countrycodes=us&format=json&addressdetails=1&limit=1"
@@ -246,11 +266,25 @@ if not lat and active_water_body and location_name:
         if osm_res and len(osm_res) > 0:
             lat = float(osm_res[0]["lat"])
             lon = float(osm_res[0]["lon"])
+            
+            # 🔄 YOUR FEATURE: Reverse-geocode the lake coordinates to find the true local town for weather!
+            try:
+                rev_url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
+                rev_res = requests.get(rev_url, headers=headers).json()
+                address = rev_res.get('address', {})
+                # Grab the village, town, or city right next to the water structure
+                true_town = address.get('village', address.get('town', address.get('city', 'Local Area')))
+                true_state = address.get('state', input_state)
+                
+                # Overwrite layout configuration names with the lake's true geographic location context
+                location_name = f"{true_town}, {true_state}"
+            except Exception:
+                pass # Gracefully retain baseline manual input text if reverse lookup times out
+                
             if routing_mode != "🛰️ Use My Live GPS Coordinates":
                 display_summary = f"🗺️ Target Water: **{active_water_body}** ({location_name})"
-                water_context = f"the specific body of water named {active_water_body} in Washington."
+                water_context = f"the specific body of water named {active_water_body} in {input_state}."
         else:
-            # Standard safety backup pin if everything fails
             lat, lon = 47.2529, -122.4443 
     except Exception:
         lat, lon = 47.2529, -122.4443
