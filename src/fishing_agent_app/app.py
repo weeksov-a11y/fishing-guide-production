@@ -207,27 +207,42 @@ with config_col2:
 
 st.markdown("---")
 
-# 🎣 DYNAMIC SPECIES INTAKE SHAPED BY THE LOCALIZED STATE DETECTED ABOVE
+# 🎣 EXPANDED DYNAMIC SPECIES INTAKE (COMPLETE PNW LEGAL CATALOG)
 st.markdown(f"### 🎣 4. Select Target Species ({agency_name} Legal Catalog)")
 
 if detected_state == "Washington":
     if env_choice == "Freshwater":
         if fw_category == "🏞️ Rivers":
-            species_options = ["King Salmon (Fall Chinook)", "Silver Salmon (Coho)", "Pink Salmon", "Chum Salmon", "Steelhead", "Coastal Cutthroat"]
+            species_options = [
+                "King Salmon (Chinook)", "Silver Salmon (Coho)", "Pink Salmon", 
+                "Chum Salmon", "Sockeye Salmon", "Summer Steelhead", 
+                "Winter Steelhead", "Coastal Cutthroat", "White Sturgeon"
+            ]
             default_species = "Silver Salmon (Coho)"
         else:
-            species_options = ["Crappie", "Largemouth Bass", "Smallmouth Bass", "Rainbow Trout", "Yellow Perch", "Kokanee", "Walleye"]
+            species_options = [
+                "Rainbow Trout", "Cutthroat Trout", "Brown Trout", "Brook Trout", 
+                "Kokanee", "Crappie", "Largemouth Bass", "Smallmouth Bass", 
+                "Yellow Perch", "Walleye", "Channel Catfish", "Bluegill/Sunfish", "Tiger Muskie"
+            ]
             default_species = "Crappie"
     else: # Saltwater WA
-        species_options = ["Resident Coho Salmon", "Blackmouth (Chinook)", "Puget Sound Surfperch", "Flounder", "Spiny Dogfish", "Lingcod", "Cabezon"]
+        species_options = ["Resident Coho Salmon", "Blackmouth (Chinook)", "Puget Sound Surfperch", "Flounder", "Spiny Dogfish", "Lingcod", "Cabezon", "Halibut"]
         default_species = "Resident Coho Salmon"
-else: # Oregon Jurisdiction State Mapping Loop
+else: # Oregon Jurisdiction
     if env_choice == "Freshwater":
         if fw_category == "🏞️ Rivers":
-            species_options = ["Spring Chinook", "Fall Chinook", "Coho Salmon", "Winter Steelhead", "Summer Steelhead", "White Sturgeon"]
+            species_options = [
+                "Spring Chinook", "Fall Chinook", "Coho Salmon", 
+                "Winter Steelhead", "Summer Steelhead", "White Sturgeon", "American Shad"
+            ]
             default_species = "Coho Salmon"
         else:
-            species_options = ["Largemouth Bass", "Smallmouth Bass", "Crappie", "Rainbow Trout", "Walleye", "Channel Catfish", "Bluegill"]
+            species_options = [
+                "Rainbow Trout", "Brown Trout", "Brook Trout", "Lake Trout (Mackinaw)", 
+                "Kokanee", "Largemouth Bass", "Smallmouth Bass", "Crappie", 
+                "Yellow Perch", "Walleye", "Channel Catfish", "Bluegill"
+            ]
             default_species = "Crappie"
     else: # Saltwater OR
         species_options = ["Ocean Chinook", "Ocean Coho", "Rockfish (Black/Blue)", "Lingcod", "Pacific Halibut", "Surfperch", "Greenling"]
