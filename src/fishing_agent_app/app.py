@@ -180,7 +180,7 @@ else: # 🔍 Suggest Local Hotspots Mode
     st.markdown("### 🛰️ Fast AI Scout Engine")
     if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
         with st.spinner(f"🤖 Mapping local hotspots near {location_name}..."):
-            prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, boat launches, or marine zones located within a scenic 50-100 mile driving radius of {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 5 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers. Example format:\nLake Kapowsin\nAmerican Lake\nSpanaway Lake"
+            prompt = f"Provide exactly 5 real, specific local named {env_choice} fishing spots, lakes, boat launches, or marine zones located within a scenic 50-100 mile driving radius of {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 5 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers. Example format:\nLake Kapowsin\nAmerican Lake\nSpanaway Lake"
             try:
                 scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
                 raw_text = str(scout_res).strip()
