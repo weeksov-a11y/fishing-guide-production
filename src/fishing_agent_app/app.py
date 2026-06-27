@@ -169,18 +169,18 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
 
 elif routing_mode == "✍️ Enter a Specific Water Body By Name":
     user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Puyallup River")
-    manual_city = st.text_input("📍 City/State closest to this water (for weather tracking):", value="Tacoma, WA")
+    manual_city = st.text_input("📍 Your Base Camp / Closest City (Sets State Jurisdiction):", value="Tacoma, WA")
     location_name = manual_city
     active_water_body = user_water.strip()
 
 else: # 🔍 Suggest Local Hotspots Mode
-    manual_city = st.text_input("📍 Enter your search City, State:", value="Tacoma, WA")
+    manual_city = st.text_input("📍 Search Anchor City (Finds spots within a 50-100 mile radius):", value="Tacoma, WA")
     location_name = manual_city
     
     st.markdown("### 🛰️ Fast AI Scout Engine")
     if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
         with st.spinner(f"🤖 Mapping local hotspots near {location_name}..."):
-            prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, or marine zones located near {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers. Example format:\nLake Kapowsin\nAmerican Lake\nSpanaway Lake"
+            prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, boat launches, or marine zones located within a scenic 50-100 mile driving radius of {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 5 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers. Example format:\nLake Kapowsin\nAmerican Lake\nSpanaway Lake"
             try:
                 scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
                 raw_text = str(scout_res).strip()
