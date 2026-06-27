@@ -381,7 +381,9 @@ if lat and lon:
         # 🗺️ DYNAMIC MULTI-STATE / GLOBAL GEOSPATIAL ROUTER INTERFACE
         # =====================================================================
         st.markdown(f"### 🗺️ Navigation Hub: {active_water_body}")
-        st.iframe(src=f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=14&output=embed", height=400)
+    # 🛰️ PREMIUM INTERACTIVE HYBRID SAT_MAP ENGINE
+        google_hybrid_url = f"https://www.google.com/maps/@{lat},{lon},14z/data=!3m1!1e3?entry=ttu"
+        st.iframe(src=f"https://maps.google.com/maps?q={lat},{lon}&z=14&t=h&output=embed", height=400)
         
         clean_lake_name = urllib.parse.quote(active_water_body.strip())
         
