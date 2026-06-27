@@ -40,27 +40,72 @@ if "scouted_lakes_dict" not in st.session_state:
         "Saltwater (Marine)": ["Marine Area 11 (Tacoma)", "Marine Area 13 (Olympia)", "Point Defiance Pier"]
     }
 
-# 🌊 STEP 1: SELECT ENVIRONMENT
-st.subheader("🌊 Step 1: Select Your Environment")
-env_choice = st.segmented_control(
-    "Where are you fishing today?",
-    options=["Freshwater", "Saltwater (Marine)"],
-    default="Freshwater"
-)
+# =====================================================================
+# 🎨 PREMIUM FISHBOX OVERHAUL: CONFIGURATION HEADER (STEPS 1 & 2)
+# =====================================================================
 
-# 🐟 STEP 2: CHOOSE TARGET SPECIES
-st.subheader("🐟 Step 2: Choose Your Target Species")
-if env_choice == "Freshwater":
-    fw_category = st.radio(
-        "Select System Type:", 
-        options=["🏞️ River / Anadromous Runs", "🏡 Lowland Lakes"], 
-        horizontal=True
+# 💉 Inject Micro-Styles for Selection Pills to look like high-end chartplotter buttons
+st.markdown("""
+    <style>
+        div[data-testid="stPills"] button {
+            background-color: #0f172a !important;
+            color: #cbd5e1 !important;
+            border: 1px solid #334155 !important;
+            border-radius: 20px !important;
+            padding: 6px 14px !important;
+        }
+        div[data-testid="stPills"] button[aria-selected="true"] {
+            background-color: #22c55e !important;
+            color: #0f172a !important;
+            font-weight: bold !important;
+            border-color: #22c55e !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Create a sleek, side-by-side configuration panel using modern columns
+config_col1, config_col2 = st.columns(2)
+
+with config_col1:
+    st.markdown("### 🌊 1. Environment")
+    env_choice = st.segmented_control(
+        "Select your system framework:",
+        options=["Freshwater", "Saltwater (Marine)"],
+        default="Freshwater",
+        label_visibility="collapsed" # Keeps the UI beautifully clean
     )
-    if fw_category == "🏞️ River / Anadromous Runs":
+    
+    # Dynamic sub-text indicator under the choice
+    if env_choice == "Freshwater":
+        st.caption("🟢 Connected to USGS Streamflow & Lowland Telemetry networks.")
+    else:
+        st.caption("🔵 Connected to NOAA Marine Tidal Station arrays.")
+
+with config_col2:
+    st.markdown("### 🗺️ 2. System Type")
+    if env_choice == "Freshwater":
+        fw_category = st.segmented_control(
+            "Select water body type:", 
+            options=["🏞️ Rivers", "🏡 Lakes"], 
+            default="🏡 Lakes",
+            label_visibility="collapsed"
+        )
+    else:
+        st.markdown("<p style='color: #64748b; font-size: 14px; margin-top: 8px;'>⚓ Marine Tidal Zones Active</p>", unsafe_allow_html=True)
+        fw_category = "🏡 Lakes" # Default fallback placeholder for code safety
+
+st.markdown("---")
+
+# 🐟 TARGET SPECIES PANEL (Spans full width as clear interactive action buttons)
+st.markdown("### 🎣 3. Select Target Species")
+
+# Dynamically route species arrays based on the sleek layout above
+if env_choice == "Freshwater":
+    if fw_category == "🏞️ Rivers":
         species_options = [
             "King Salmon (Fall Chinook)", 
             "Silver Salmon (Coho)", 
-            "Pink Salmon (Odd-Years Only)", 
+            "Pink Salmon", 
             "Chum Salmon", 
             "Steelhead"
         ]
@@ -72,8 +117,14 @@ else:
     species_options = ["Resident Coho Salmon", "Chinook Salmon", "Puget Sound Surfperch", "Flounder", "Spiny Dogfish", "Dabs", "Sole"]
     default_species = "Resident Coho Salmon"
 
-target_fish = st.pills("Tap your target fish:", options=species_options, default=default_species)
+# Render the custom-styled tactical target pills
+target_fish = st.pills("Choose your target profile:", options=species_options, default=default_species, label_visibility="collapsed")
 
+st.markdown("""
+    <div style='background-color: #0f172a; padding: 8px 12px; border-radius: 6px; border: 1px dashed #334155; margin-bottom: 20px;'>
+        <span style='color: #94a3b8; font-size: 13px;'>🎯 <b>Target Profile Locked:</b> AI Scout patterns optimized for tracking <b>{}</b>.</span>
+    </div>
+""".format(target_fish), unsafe_allow_html=True)
 # 📡 STEP 3: LOCATION SYSTEM
 st.subheader("📡 Step 3: Destination Routing Mode")
 routing_mode = st.radio(
