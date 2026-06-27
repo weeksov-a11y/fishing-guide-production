@@ -207,7 +207,9 @@ with config_col2:
 
 st.markdown("---")
 
-# 🎣 DYNAMIC SPECIES INTAKE (SEGREGATED FOR HABITAT ACCURACY)
+# =====================================================================
+# 🎣 STEP 4: EXPANDED BIOLOGICAL TARGET MENUS
+# =====================================================================
 st.markdown(f"### 🎣 4. Select Target Species ({agency_name} Legal Catalog)")
 
 if detected_state == "Washington":
@@ -256,11 +258,15 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# 🔍 LATE-EXECUTION DRIVEN SPOT SCOUTING FOR RADIUS PROMPTS
+# =====================================================================
+# ⚙️ AUTOMATED RADAR SCOUT ENGINE LOOP
+# =====================================================================
 if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coordinates"]:
-    st.markdown("### 🛰️ Fast AI Scout Engine")
-    if st.button("🔍 Scout & Update Local Choices", use_container_width=True, type="secondary"):
-        with st.spinner(f"🤖 Mapping local hotspots near {location_name}..."):
+    # Unique setup fingerprint used to check for user input parameter modifications
+    scout_fingerprint = f"{env_choice}_{target_fish}_{location_name}"
+    
+    if st.session_state.get("last_scout_fingerprint") != scout_fingerprint and location_name != "":
+        with st.spinner(f"🤖 Auto-Scouting optimal {env_choice} habitats near {location_name}..."):
             prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, boat launches, or marine zones located within a scenic 50-100 mile driving radius of {location_name} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers. Example format:\nLake Kapowsin\nAmerican Lake\nSpanaway Lake"
             try:
                 scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
@@ -276,20 +282,19 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
                 
                 if len(cleaned_list) >= 1:
                     st.session_state.scouted_lakes_dict[env_choice] = cleaned_list[:3]
-                    st.success("🎯 Hotspots updated!")
+                    st.session_state.last_scout_fingerprint = scout_fingerprint
                     st.rerun() 
-                else:
-                    st.error("🤖 AI returned an empty list. Try clicking again.")
-            except Exception as e:
-                st.error(f"⚠️ Scouting engine timeout: {e}")
+            except Exception:
+                pass # Bypassed silently to preserve current session arrays on timeout glitches
 
     default_spots = ["Spanaway Lake", "American Lake", "Lake Kapowsin"] if env_choice == "Freshwater" else ["Marine Area 11 (Tacoma)", "Marine Area 13 (Olympia)", "Point Defiance Pier"]
     dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, default_spots)
+    
     selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options)
     active_water_body = selected_suggested
 
-    # Run execution parsing on final selected suggestion item context
-    if not lat and active_water_body:
+    # Re-run coordinate parsing on auto-scouted dropdown items dynamically
+    if active_water_body and routing_mode != "🛰️ Use My Live GPS Coordinates":
         try:
             query_body = active_water_body.strip()
             if re.search(r"\blake\b$", query_body, re.IGNORECASE):
@@ -304,11 +309,12 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
                 lat = float(osm_res[0]["lat"])
                 lon = float(osm_res[0]["lon"])
                 
-                # Dynamic weather correction on the auto-scouted lake structure item position!
                 rev_res = requests.get(f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json", headers=headers).json()
                 address = rev_res.get('address', {})
                 true_town = address.get('village', address.get('town', address.get('city', 'Local Area')))
                 location_name = f"{true_town}, {detected_state}"
+                display_summary = f"🗺️ Target Water: **{active_water_body}** ({location_name})"
+                water_context = f"the specific body of water named {active_water_body} in {detected_state}."
         except Exception:
             lat, lon = 47.2529, -122.4443
 
@@ -387,7 +393,7 @@ if lat and lon:
         else:
             card_border, score_color, rating_text = "#ef4444", "#ef4444", "🚨 TOUGH BITE WINDOW"
 
-        # 📊 1. FORECAST BADGE
+        # 📊 1. PREMIUM HYPERLOCAL FORECAST CARD
         st.markdown(f"""
             <div class="bite-card" style="border-left-color: {card_border};">
                 <span style="color: #94a3b8; font-size: 14px; font-weight: bold; uppercase;">Live Solunar Analytics</span>
@@ -401,7 +407,7 @@ if lat and lon:
             </div>
         """, unsafe_allow_html=True)
 
-        # 🗺️ 2. NAVIGATION FRAME
+        # 🗺️ 2. HIGH-RESOLUTION NAVIGATION FRAME WITH EXTERNAL LAUNCH DEEP-LINK
         st.markdown(f"### 🗺️ Navigation Hub: {active_water_body}")
         google_maps_url = f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=14&output=embed"
         st.iframe(src=google_maps_url, height=400)
@@ -411,11 +417,14 @@ if lat and lon:
             encoded_search = urllib.parse.quote(f"{active_water_body} depth chart contour map")
             st.link_button("🔍 Search Bathymetric Charts", f"https://www.google.com/search?q={encoded_search}&tbm=isch", use_container_width=True)
         with m_col2:
-            st.button("📍 Log Secret Waypoint Coordinates", use_container_width=True, disabled=True)
+            # 🚙 Direct Turn-by-Turn Navigation App Deep-Link Trigger
+            encoded_nav_target = urllib.parse.quote(f"{active_water_body} public boat launch")
+            google_nav_url = f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}&query={encoded_nav_target}"
+            st.link_button("🚙 Launch Phone GPS Route", google_nav_url, use_container_width=True, type="primary")
 
         st.markdown("---")
 
-        # 📈 3. COMPACT TABBED INTERFACE LAYOUT
+        # 📈 3. COMPACT TABBED DATA FRAME INTERFACE
         tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs(["🌦️ Atmosphere", "🌊 Water Gauges", "🎣 Tactical Strategy", "🚨 Game Rules"])
 
         with tab_cond:
@@ -470,7 +479,7 @@ if lat and lon:
                 if "### 🎣 Tactical Strategy Plan" in raw_out:
                     st.markdown(raw_out.split("### 🎣 Tactical Strategy Plan")[0].replace("### 🚨 Regional Legal Compliance Guardrails & Location Suggestions", "").strip())
                 else:
-                    st.write("Review localized regulatory parameters on the primary console output data block.")
+                    st.write("Review localized regulatory parameters on the primary data block.")
             else:
                 st.warning(f"Verify standard limit definitions on your native **{agency_name}** regional dashboard before making your first cast.")
 
