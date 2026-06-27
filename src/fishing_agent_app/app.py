@@ -207,18 +207,19 @@ else: # 🔍 Suggest Local Hotspots Mode
     selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options)
     active_water_body = selected_suggested
 
-# 🧭 FIXED GEOLOCATION SEARCH LOOP WITH SMART LAKE ROUTING
+# 🧭 FIXED GEOLOCATION SEARCH LOOP WITH STATEWIDE ROUTING
 if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"]:
     lat, lon = None, None  
 
 if not lat and active_water_body and location_name:
     try:
         if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"] and "GPS Location" not in active_water_body:
-            # Catch Kapowsin / Kapowisin variations and pin the exact lake asset
+            # Clean up variations for Kapowsin
             if re.search(r"kapow", active_water_body, re.IGNORECASE):
-                search_query = "Lake Kapowsin, Pierce County, Washington"
+                search_query = f"Lake Kapowsin, {detected_state}"
             else:
-                search_query = f"{active_water_body}, {location_name}"
+                # 🚀 Widens the search net across the whole state instead of choking on a single city boundary
+                search_query = f"{active_water_body}, {detected_state}"
         else:
             search_query = location_name
 
@@ -227,6 +228,7 @@ if not lat and active_water_body and location_name:
         osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_query}&countrycodes=us&format=json&addressdetails=1&limit=1"
         osm_res = requests.get(osm_url, headers=headers).json()
         
+        # Fallback to city center only if the statewide water body query completely fails
         if not osm_res or len(osm_res) == 0:
             encoded_city = urllib.parse.quote(location_name.strip())
             osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&countrycodes=us&format=json&addressdetails=1&limit=1"
@@ -237,8 +239,9 @@ if not lat and active_water_body and location_name:
             lon = float(osm_res[0]["lon"])
             if routing_mode != "🛰️ Use My Live GPS Coordinates":
                 display_summary = f"🗺️ Target Water: **{active_water_body}** ({location_name})"
-                water_context = f"the specific body of water named {active_water_body} near {location_name}."
+                water_context = f"the specific body of water named {active_water_body} in {detected_state}."
         else:
+            # Standard safety backup pin if everything fails
             lat, lon = 47.2529, -122.4443 
     except Exception:
         lat, lon = 47.2529, -122.4443
