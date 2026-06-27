@@ -137,7 +137,7 @@ water_context = ""
 display_summary = ""
 base_anchor_city = st.session_state.get("location_name", "Tacoma, WA")
 
-# 🧲 SELECTION INTERCEPT: Instantly pull the active dropdown choice from state memory
+# 🧲 SELECTION INTERCEPT: Instantly capture your active dropdown selections out of state memory
 scout_dropdown_val = st.session_state.get(f"sb_hotspots_{routing_mode}_{st.session_state.get('env_choice', 'Freshwater')}_{st.session_state.get('fw_category', '🏡 Lakes')}")
 if scout_dropdown_val and not scout_dropdown_val.startswith("⚡"):
     active_water_body = scout_dropdown_val
@@ -323,7 +323,7 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
     if not dropdown_options:
         dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
 
-    # 🎯 DYNAMIC KEY MATRIX: Changes key signature instantly whenever configurations change
+    # 🎯 DYNAMIC KEY MATRIX: Keeps widget signatures perfectly synchronized 
     dynamic_widget_key = f"hotspot_select_{routing_mode}_{env_choice}_{fw_category}_{target_fish.replace(' ', '_')}_{base_anchor_city.replace(' ', '_')}"
 
     selected_suggested = st.selectbox(
@@ -500,7 +500,7 @@ if lat and lon:
                 st.session_state.map_view = {"center": [lat, lon], "zoom": 13}
                 st.session_state.last_water_body = active_water_body
 
-            # 🚀 HIGH-CONTRAST GOOGLE MAPS ENGINE (Clear blue water boundaries, zero pan lag)
+            # 🚀 HIGH-CONTRAST GOOGLE MAPS ENGINE (Clear blue water contours, zero rendering lag)
             m = folium.Map(
                 location=st.session_state.map_view["center"], 
                 zoom_start=st.session_state.map_view["zoom"],
@@ -523,7 +523,7 @@ if lat and lon:
 
             m.add_child(folium.LatLngPopup())
             
-            # 🏎️ THROTTLE MAP BROADCAST OBJECTS: Stops zoom execution lag completely
+            # 🏎️ THROTTLE RETURN OBJECTS: Eradicates zoom and drag reload loop lag completely
             map_data = st_folium(
                 m, 
                 width=750, 
