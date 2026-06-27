@@ -41,6 +41,13 @@ if "scouted_lakes_dict" not in st.session_state:
         "Saltwater (Marine)": []
     }
 
+# Dictionary to normalize state abbreviation inputs instantly
+STATE_DICTIONARY = {
+    "wa": "Washington", "or": "Oregon", "tx": "Texas", "pa": "Pennsylvania",
+    "fl": "Florida", "ca": "California", "ny": "New York", "mi": "Michigan",
+    "mn": "Minnesota", "oh": "Ohio", "wi": "Wisconsin", "ga": "Georgia"
+}
+
 # =====================================================================
 # 🛰️ STEP 1: LOCATION-FIRST ROUTING MODULE (THE ANCHOR)
 # =====================================================================
@@ -114,10 +121,10 @@ if base_anchor_city:
 else:
     input_state = "Washington"
 
-# Short-code normalization to protect matching layers
-if input_state.lower() in ["tx", "texas"]: input_state = "Texas"
-elif input_state.lower() in ["or", "oregon"]: input_state = "Oregon"
-elif input_state.lower() in ["wa", "washington"]: input_state = "Washington"
+# Core Normalization Engine for Abbreviations
+clean_state_key = input_state.strip().lower()
+if clean_state_key in STATE_DICTIONARY:
+    input_state = STATE_DICTIONARY[clean_state_key]
 
 # =====================================================================
 # 🎨 STEP 2 & 3: DYNAMIC CONFIGURATION WINDOWS
@@ -173,6 +180,15 @@ elif input_state == "Texas":
             species_options = ["Largemouth Bass", "Smallmouth Bass", "Spotted Bass", "White Crappie", "Black Crappie", "Bluegill", "Channel Catfish", "Blue Catfish", "Hybrid Striped Bass", "Walleye"]
     else:
         species_options = ["Red Drum (Redfish)", "Spotted Seatrout", "Black Drum", "Flounder", "Sheepshead", "King Mackerel", "Cobias", "Snapper (Red)"]
+
+elif input_state == "Pennsylvania":
+    if env_choice == "Freshwater":
+        if fw_category == "🏞️ Rivers":
+            species_options = ["Smallmouth Bass", "Walleye", "Muskellunge", "Channel Catfish", "Flathead Catfish", "Brown Trout", "Brook Trout"]
+        else:
+            species_options = ["Largemouth Bass", "Walleye", "Yellow Perch", "Black Crappie", "Bluegill", "Rainbow Trout", "Northern Pike", "Channel Catfish"]
+    else:
+        species_options = ["Striped Bass", "Summer Flounder", "Bluefish", "Weakfish", "Tautog"]
 
 else: # 🌎 UNIVERSAL GLOBAL FALLBACK MATRIX FOR UNMAPPED REGIONS
     if env_choice == "Freshwater":
@@ -268,9 +284,23 @@ if active_water_body and active_water_body != "Current GPS Location":
             display_summary = f"🗺️ Target Water: **{active_water_body}** ({location_name})"
             water_context = f"the specific body of water named {active_water_body} in {input_state}."
     except Exception:
-        lat, lon = 47.2529, -122.4443
+        pass
 else:
-    if not lat: lat, lon = 47.2529, -122.4443
+    # If using text input and no coordinates found yet, look up the base city to prevent stagnant weather anchors
+    if not lat and base_anchor_city:
+        try:
+            headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
+            osm_res = requests.get(f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(base_anchor_city)}&countrycodes=us,ca,mx&format=json&limit=1", headers=headers).json()
+            if osm_res:
+                lat, lon = float(osm_res[0]["lat"]), float(osm_res[0]["lon"])
+                location_name = base_anchor_city
+        except Exception:
+            pass
+
+# Final Dynamic Fallback Safety Pin
+if not lat or not lon:
+    lat, lon = 47.2529, -122.4443
+    location_name = "Tacoma, WA"
 
 # Derive dynamic operational state variables for execution paths
 if "location_name" in locals() and location_name != "":
@@ -278,8 +308,8 @@ if "location_name" in locals() and location_name != "":
 else:
     check_str = base_anchor_city.lower()
 
-detected_state = "Texas" if "texas" in check_str or "tx" in check_str else "Oregon" if "oregon" in check_str or "or" in check_str or (lat and lat < 46.25 and "washington" not in check_str) else "Washington" if "washington" in check_str or "wa" in check_str else input_state
-agency_name = "TPWD" if detected_state == "Texas" else "ODFW" if detected_state == "Oregon" else "WDFW" if detected_state == "Washington" else f"{detected_state} Conservation"
+detected_state = "Texas" if "texas" in check_str or "tx" in check_str else "Oregon" if "oregon" in check_str or "or" in check_str or (lat < 46.25 and "washington" not in check_str and "pennsylvania" not in check_str) else "Pennsylvania" if "pennsylvania" in check_str or "pa" in check_str else "Washington" if "washington" in check_str or "wa" in check_str else input_state
+agency_name = "TPWD" if detected_state == "Texas" else "ODFW" if detected_state == "Oregon" else "PFBC" if detected_state == "Pennsylvania" else "WDFW" if detected_state == "Washington" else f"{detected_state} Wildlife"
 
 # =====================================================================
 # 🚀 STEP 5: RUN COMPILATION ENGINE & RENDER DASHBOARD UI
@@ -344,15 +374,15 @@ if lat and lon:
         
         if detected_state == "Washington":
             state_gis_url = f"https://geo.wa.gov/datasets/waecy::lake-bathymetric-contour-lines/about"
-            gis_label = "🌲 Launch WA State Contour Library"
+            gis_label = "🌲 Open WA State Contour Portal"
         elif detected_state == "Oregon":
-            state_gis_url = f"https://atlas.geol.pdx.edu/"
-            gis_label = "🌲 Open Atlas of Oregon Lakes"
+            state_gis_url = f"https://www.oregongeology.org/sub/publications/LidarLandscapes/index.htm"
+            gis_label = "🌲 Open Oregon Spatial Registry"
         elif detected_state == "Texas":
             state_gis_url = f"https://www.twdb.texas.gov/surfacewater/surveys/index.asp"
-            gis_label = "🤠 Launch Texas TWDB Hydro Survey"
+            gis_label = "🤠 Open Texas TWDB Hydro Surveys"
         else:
-            # 🌎 UNIVERSAL FALLBACK LINK ENGINE FOR ALL OTHER AMER TERRITORIES
+            # 🌎 UNIVERSAL FALLBACK ENGINE: Secure web redirection mapping target to image layers smoothly
             state_gis_url = f"https://www.google.com/search?q={clean_lake_name}+{detected_state}+depth+contour+map&tbm=isch"
             gis_label = "🔍 Scan Public Contour Archives"
 
