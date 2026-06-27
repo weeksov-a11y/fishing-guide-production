@@ -4,10 +4,14 @@ import os
 import requests
 import urllib.parse
 import re
+import sqlite3
+import pandas as pd
 from datetime import datetime
 
 # 🛰️ Native Universal Hardware Geolocation Link
 from streamlit_geolocation import streamlit_geolocation
+import folium
+from streamlit_folium import st_folium
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -28,20 +32,76 @@ gemini_scout_model = LLM(
 )
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
-st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="centered")
+st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="wide")
 st.title("🎣 Mobile Fishing Advisor")
 
 app_base_url = "https://fishing-guide.streamlit.app"
 st.logo(logo_path) 
 
-# Ensure our global caching dictionary exists
+# =====================================================================
+# ⚡ CENTRAL ANTI-LAG CACHING MATRIX
+# =====================================================================
+
+@st.cache_data(ttl=600)
+def get_coordinates_from_osm(search_query):
+    """Caches text-to-coordinate lookups to eliminate map pan lag"""
+    headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
+    try:
+        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(search_query)}&countrycodes=us,ca,mx&format=json&limit=1"
+        return requests.get(url, headers=headers, timeout=5).json()
+    except Exception:
+        return []
+
+@st.cache_data(ttl=600)
+def get_address_from_gps(lat, lon):
+    """Caches reverse GPS-to-city lookups"""
+    headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
+    try:
+        url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
+        return requests.get(url, headers=headers, timeout=5).json()
+    except Exception:
+        return {}
+
+@st.cache_data(ttl=600)
+def fetch_cached_weather(lat, lon):
+    """Caches weather data for 10 minutes so map zooming skips internet loading calls"""
+    try:
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,cloud_cover,surface_pressure,wind_speed_10m&hourly=surface_pressure,precipitation,temperature_2m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto"
+        return requests.get(url, timeout=5).json()
+    except Exception:
+        return None
+
+# =====================================================================
+# 🗄️ DATABASE SYSTEM (Tiny Local Footprint: ~1KB per catch)
+# =====================================================================
+DB_FILE = "premium_catches.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS catch_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            lake_name TEXT,
+            species TEXT,
+            weight REAL,
+            latitude REAL,
+            longitude REAL,
+            substrate TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
 if "scouted_lakes_dict" not in st.session_state:
     st.session_state.scouted_lakes_dict = {
         "Freshwater": [],
         "Saltwater (Marine)": []
     }
 
-# Dictionary to normalize state abbreviation inputs instantly
 STATE_DICTIONARY = {
     "wa": "Washington", "or": "Oregon", "tx": "Texas", "pa": "Pennsylvania",
     "fl": "Florida", "ca": "California", "ny": "New York", "mi": "Michigan",
@@ -64,7 +124,6 @@ display_summary = ""
 active_water_body = ""
 base_anchor_city = ""
 
-# Pre-evaluate dropdown selection hooks from session state early
 scout_dropdown_val = st.session_state.get(f"sb_hotspots_{routing_mode}")
 if scout_dropdown_val and not scout_dropdown_val.startswith("⚡"):
     active_water_body = scout_dropdown_val
@@ -79,15 +138,14 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
         if not active_water_body:
             lat = float(location_data['latitude'])
             lon = float(location_data['longitude'])
-            try:
-                headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
-                rev_res = requests.get(f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json", headers=headers).json()
-                address = rev_res.get('address', {})
-                city = address.get('city', address.get('town', address.get('village', 'Unknown Area')))
-                state = address.get('state', 'Washington')
-                location_name = f"{city}, {state}"
-            except Exception:
-                location_name = "Tacoma, WA"
+            
+            # Using cached reverse lookup function
+            rev_res = get_address_from_gps(lat, lon)
+            address = rev_res.get('address', {})
+            city = address.get('city', address.get('town', address.get('village', 'Unknown Area')))
+            state = address.get('state', 'Washington')
+            location_name = f"{city}, {state}"
+            
             active_water_body = "Current GPS Location"
             water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f} near {location_name}."
             display_summary = f"🎯 Universal Position Locked: **{location_name}** ({lat:.4f}, {lon:.4f})"
@@ -109,19 +167,17 @@ elif routing_mode == "📝 Enter a Specific Water Body By Name":
     if not active_water_body:
         active_water_body = user_water.strip()
 
-else: # 🔍 Suggest Local Hotspots Mode
+else: 
     manual_city = st.text_input("📍 Search Anchor City (Finds spots within a 50-100 mile radius):", value="Tacoma, WA")
     location_name = manual_city
     base_anchor_city = manual_city
 
-# Resolve input operating state cleanly
 if base_anchor_city:
     state_match = re.search(r",\s*([A-Za-z\s]+)$", base_anchor_city)
     input_state = state_match.group(1).strip() if state_match else base_anchor_city
 else:
     input_state = "Washington"
 
-# Core Normalization Engine for Abbreviations
 clean_state_key = input_state.strip().lower()
 if clean_state_key in STATE_DICTIONARY:
     input_state = STATE_DICTIONARY[clean_state_key]
@@ -190,7 +246,7 @@ elif input_state == "Pennsylvania":
     else:
         species_options = ["Striped Bass", "Summer Flounder", "Bluefish", "Weakfish", "Tautog"]
 
-else: # 🌎 UNIVERSAL GLOBAL FALLBACK MATRIX FOR UNMAPPED REGIONS
+else: 
     if env_choice == "Freshwater":
         if fw_category == "🏞️ Rivers":
             species_options = ["Salmon", "Steelhead", "River Trout", "Smallmouth Bass", "Striper", "Catfish", "Walleye"]
@@ -209,7 +265,6 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
     scout_fingerprint = f"{routing_mode}_{env_choice}_{fw_category}_{target_fish}_{base_anchor_city}"
     
     if st.session_state.get("last_scout_fingerprint") != scout_fingerprint and base_anchor_city != "":
-        # Hardcoded Elite Biological Safeties (Washington State Context)
         if "Channel Catfish" in target_fish and input_state == "Washington":
             st.session_state.scouted_lakes_dict[env_choice] = ["Green Lake (Seattle)", "Sprague Lake", "Swofford Pond"]
             st.session_state.last_scout_fingerprint = scout_fingerprint
@@ -219,7 +274,6 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
             st.session_state.last_scout_fingerprint = scout_fingerprint
             st.rerun()
             
-        # 🤖 Automated Macro-Scouting Framework 
         else:
             with st.spinner(f"🤖 Auto-Scouting fresh local options near {base_anchor_city}..."):
                 prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, boat launches, or marine zones located within a scenic 50-100 mile driving radius of {base_anchor_city} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers."
@@ -234,7 +288,6 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
                 except Exception:
                     pass
 
-    # ✅ DYNAMIC INSTRUCTIONAL PROMPTS (Saves Data & Cleans UI)
     if scout_fingerprint != st.session_state.get("last_scout_fingerprint"):
         dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
     else:
@@ -242,7 +295,6 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
         if not dropdown_options:
             dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
 
-    # ✅ FULLY UNIQUE ELEMENT FINGERPRINT KEYS PREVENT DUPLICATE ERRS
     selected_suggested = st.selectbox(
         "🎯 Tap to select one of your local suggested hotspots:", 
         options=dropdown_options, 
@@ -255,11 +307,10 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
         active_water_body = selected_suggested
 
 # =====================================================================
-# 🧭 RESOLVE TARGET COORDINATES (GEOLOCATION & REVERSE PROCESSING)
+# 🧭 RESOLVE TARGET COORDINATES (GEOLOCATION INTERCEPT PROCESSORS)
 # =====================================================================
 if active_water_body and active_water_body != "Current GPS Location":
     try:
-        # Clean real estate strings away out of the search context text string loops
         query_body = re.sub(r"\(Seattle\)", "", active_water_body, flags=re.IGNORECASE).strip()
         
         if re.search(r"kapow", query_body, re.IGNORECASE): query_body = "Lake Kapowsin"
@@ -267,42 +318,31 @@ if active_water_body and active_water_body != "Current GPS Location":
         elif env_choice == "Freshwater" and fw_category == "🏡 Lakes" and not re.search(r"\blake\b", query_body, re.IGNORECASE):
             query_body = f"Lake {query_body}"
 
-        # 🚨 THE GEOLOCATION FIX: Append strict feature tags to filter away residential houses
         search_query = f"{query_body}, {input_state}, water=lake" if (env_choice == "Freshwater" and fw_category == "🏡 Lakes") else f"{query_body}, {input_state}"
         
-        headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
-        osm_res = requests.get(f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(search_query)}&countrycodes=us,ca,mx&format=json&limit=1", headers=headers).json()
-        
-        # Fallback to loose search without feature restrictions if first try blanks out
+        # Pull from cached OSM execution module
+        osm_res = get_coordinates_from_osm(search_query)
         if not osm_res:
             loose_query = f"{query_body}, {input_state}"
-            osm_res = requests.get(f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(loose_query)}&countrycodes=us,ca,mx&format=json&limit=1", headers=headers).json()
+            osm_res = get_coordinates_from_osm(loose_query)
 
         if osm_res:
             lat, lon = float(osm_res[0]["lat"]), float(osm_res[0]["lon"])
-            try:
-                rev_res = requests.get(f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json", headers=headers).json()
-                address = rev_res.get('address', {})
-                resolved_state = address.get('state', input_state)
-                location_name = f"{address.get('village', address.get('town', address.get('city', 'Local Area')))}, {resolved_state}"
-            except Exception:
-                location_name = base_anchor_city
+            rev_res = get_address_from_gps(lat, lon)
+            address = rev_res.get('address', {})
+            resolved_state = address.get('state', input_state)
+            location_name = f"{address.get('village', address.get('town', address.get('city', 'Local Area')))}, {resolved_state}"
             display_summary = f"🗺️ Target Water: **{active_water_body}** ({location_name})"
             water_context = f"the specific body of water named {active_water_body} in {input_state}."
     except Exception:
         pass
 else:
     if not lat and base_anchor_city:
-        try:
-            headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
-            osm_res = requests.get(f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(base_anchor_city)}&countrycodes=us,ca,mx&format=json&limit=1", headers=headers).json()
-            if osm_res:
-                lat, lon = float(osm_res[0]["lat"]), float(osm_res[0]["lon"])
-                location_name = base_anchor_city
-        except Exception:
-            pass
+        osm_res = get_coordinates_from_osm(base_anchor_city)
+        if osm_res:
+            lat, lon = float(osm_res[0]["lat"]), float(osm_res[0]["lon"])
+            location_name = base_anchor_city
 
-# Fallback intercept profiles if name detection completely fails downstream
 if "wallenpaupack" in active_water_body.lower():
     lat, lon = 41.4201, -75.2333
     location_name = "Pocono Mountains, PA"
@@ -314,12 +354,7 @@ if not lat or not lon:
     lat, lon = 47.2529, -122.4443
     location_name = "Tacoma, WA"
 
-# Derive dynamic operational state variables for execution paths
-if "location_name" in locals() and location_name != "":
-    check_str = location_name.lower()
-else:
-    check_str = base_anchor_city.lower()
-
+check_str = location_name.lower() if ("location_name" in locals() and location_name != "") else base_anchor_city.lower()
 detected_state = "Texas" if "texas" in check_str or "tx" in check_str else "Oregon" if "oregon" in check_str or "or" in check_str or (lat < 46.25 and "washington" not in check_str and "pennsylvania" not in check_str) else "Pennsylvania" if "pennsylvania" in check_str or "pa" in check_str else "Washington" if "washington" in check_str or "wa" in check_str else input_state
 agency_name = "TPWD" if detected_state == "Texas" else "ODFW" if detected_state == "Oregon" else "PFBC" if detected_state == "Pennsylvania" else "WDFW" if detected_state == "Washington" else f"{detected_state} Wildlife"
 
@@ -331,7 +366,8 @@ execute_crew = st.button("🚀 Generate Tactical Strategy Plan", type="primary",
 
 if lat and lon:
     try:
-        weather = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,cloud_cover,surface_pressure,wind_speed_10m&hourly=surface_pressure,precipitation,temperature_2m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto").json()
+        # Pull from our ultra-fast weather caching block
+        weather = fetch_cached_weather(lat, lon)
         current = weather['current']
         diff = current['surface_pressure'] - weather['hourly']['surface_pressure'][-3]
         trend = "Rising rapidly" if diff > 0.05 else "Rising slowly" if diff > 0.01 else "Falling rapidly" if diff < -0.05 else "Falling slowly" if diff < -0.01 else "Stable"
@@ -378,16 +414,79 @@ if lat and lon:
         """, unsafe_allow_html=True)
 
         # =====================================================================
-        # 🗺️ DYNAMIC MULTI-STATE / GLOBAL GEOSPATIAL ROUTER INTERFACE
+        # 🗺️ GRAPHICAL GRID & PREMIUM INTERACTIVE LOGGING CORE
         # =====================================================================
-        st.markdown(f"### 🗺️ Navigation Hub: {active_water_body}")
-    # 🛰️ PREMIUM INTERACTIVE HYBRID SAT_MAP ENGINE
-        google_hybrid_url = f"https://www.google.com/maps/@{lat},{lon},14z/data=!3m1!1e3?entry=ttu"
-        st.iframe(src=f"https://maps.google.com/maps?q={lat},{lon}&z=14&t=h&output=embed", height=400)
+        m_col1, m_col2 = st.columns([2, 1])
+        
+        with m_col1:
+            st.markdown(f"### 🛰️ Interactive Hybrid Survey Grid: {active_water_body}")
+            
+            if "map_view" not in st.session_state or st.session_state.get("last_water_body") != active_water_body:
+                st.session_state.map_view = {"center": [lat, lon], "zoom": 13}
+                st.session_state.last_water_body = active_water_body
+
+            m = folium.Map(location=st.session_state.map_view["center"], zoom_start=st.session_state.map_view["zoom"])
+            
+            folium.TileLayer(
+                tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+                attr="Google Hybrid Imagery Engine",
+                name="Google Hybrid Layers",
+                overlay=False,
+                control=True
+            ).add_to(m)
+
+            try:
+                conn = sqlite3.connect(DB_FILE)
+                saved_catches = pd.read_sql_query("SELECT * FROM catch_log", conn)
+                conn.close()
+                for _, row in saved_catches.iterrows():
+                    folium.Marker(
+                        location=[row['latitude'], row['longitude']],
+                        popup=f"🎣 {row['species']} ({row['weight']} lbs)<br>⏳ {row['timestamp']}",
+                        icon=folium.Icon(color='blue', icon='fish', prefix='fa')
+                    ).add_to(m)
+            except Exception:
+                saved_catches = pd.DataFrame()
+
+            m.add_child(folium.LatLngPopup())
+            
+            map_data = st_folium(m, width=750, height=450, key=f"stable_map_{active_water_body}")
+
+            if map_data.get("center"):
+                st.session_state.map_view["center"] = [map_data["center"]["lat"], map_data["center"]["lng"]]
+                st.session_state.map_view["zoom"] = map_data["zoom"]
+
+        with m_col2:
+            st.markdown("### 📝 Telemetry Log Hub")
+            clicked_coords = map_data.get("last_clicked")
+            
+            if clicked_coords:
+                c_lat, c_lon = clicked_coords["lat"], clicked_coords["lng"]
+                st.success(f"🎯 Pin Set: {c_lat:.4f}, {c_lon:.4f}")
+                
+                with st.form("catch_form", clear_on_submit=True):
+                    species_log = st.selectbox("Caught Profile:", [target_fish] if target_fish else ["Largemouth Bass"])
+                    weight_log = st.number_input("Weight (lbs):", min_value=0.1, value=2.5)
+                    substrate_log = st.segmented_control("Substrate Composition:", ["Sand Bank", "Rock/Boulders", "Mud/Silt", "Weed Line"], default="Sand Bank")
+                    submit = st.form_submit_button("🔒 Secure Entry to Local DB")
+                    
+                    if submit:
+                        conn = sqlite3.connect(DB_FILE)
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            INSERT INTO catch_log (timestamp, lake_name, species, weight, latitude, longitude, substrate)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (datetime.now().strftime("%Y-%m-%d %H:%M"), active_water_body, species_log, weight_log, c_lat, c_lon, substrate_log))
+                        conn.commit()
+                        conn.close()
+                        st.toast("Catch synchronized to hard drive storage workspace!", icon="💾")
+                        st.rerun()
+            else:
+                st.info("💡 Tap directly on any hot spot or structure on the map grid to lock coordinates and open your premium catch logger panel.")
+
+        st.markdown("---")
         
         clean_lake_name = urllib.parse.quote(active_water_body.strip())
-        
-        # 🚨 THE DATA LINK FIX: Point directly to visual data viewers instead of broken landing pages
         if detected_state == "Washington":
             state_gis_url = f"https://wdfw.wa.gov/fishing/locations/lowland-lakes"
             gis_label = "🌲 Launch WDFW Hydro Graphics Portal"
@@ -401,10 +500,10 @@ if lat and lon:
             state_gis_url = f"https://www.google.com/search?q={clean_lake_name}+{detected_state}+depth+contour+map&tbm=isch"
             gis_label = "🔍 Scan Public Contour Archives"
 
-        m_col1, m_col2 = st.columns(2)
-        with m_col1: 
+        b_col1, b_col2 = st.columns(2)
+        with b_col1: 
             st.link_button(gis_label, state_gis_url, use_container_width=True)
-        with m_col2: 
+        with b_col2: 
             st.link_button("🚙 Launch Phone GPS Route", f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}&query={urllib.parse.quote(active_water_body + ' public boat launch')}", use_container_width=True, type="primary")
 
         st.markdown("---")
