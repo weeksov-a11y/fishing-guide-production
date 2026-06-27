@@ -207,19 +207,26 @@ else: # 🔍 Suggest Local Hotspots Mode
     selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options)
     active_water_body = selected_suggested
 
-# 🧭 FIXED GEOLOCATION SEARCH LOOP WITH STATEWIDE ROUTING
+# 🧭 FIXED GEOLOCATION SEARCH LOOP WITH STATEWIDE ROUTING & LAKE INVERSION
 if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"]:
     lat, lon = None, None  
 
 if not lat and active_water_body and location_name:
     try:
         if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"] and "GPS Location" not in active_water_body:
-            # Clean up variations for Kapowsin
-            if re.search(r"kapow", active_water_body, re.IGNORECASE):
-                search_query = f"Lake Kapowsin, {detected_state}"
-            else:
-                # 🚀 Widens the search net across the whole state instead of choking on a single city boundary
-                search_query = f"{active_water_body}, {detected_state}"
+            # 🔄 Clean up common naming variations for mapping engines
+            query_body = active_water_body.strip()
+            
+            if re.search(r"kapow", query_body, re.IGNORECASE):
+                query_body = "Lake Kapowsin"
+            elif re.search(r"ohop", query_body, re.IGNORECASE):
+                query_body = "Lake Ohop"
+            # If user typed "Something Lake", invert it to "Lake Something" for standard GIS matching
+            elif re.search(r"\blake\b$", query_body, re.IGNORECASE):
+                base_name = re.sub(r"\blake\b$", "", query_body, flags=re.IGNORECASE).strip()
+                query_body = f"Lake {base_name}"
+                
+            search_query = f"{query_body}, {detected_state}"
         else:
             search_query = location_name
 
