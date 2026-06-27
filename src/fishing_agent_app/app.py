@@ -125,6 +125,7 @@ st.markdown("""
         <span style='color: #94a3b8; font-size: 13px;'>🎯 <b>Target Profile Locked:</b> AI Scout patterns optimized for tracking <b>{}</b>.</span>
     </div>
 """.format(target_fish), unsafe_allow_html=True)
+
 # 📡 STEP 3: LOCATION SYSTEM
 st.subheader("📡 Step 3: Destination Routing Mode")
 routing_mode = st.radio(
@@ -206,9 +207,9 @@ else: # 🔍 Suggest Local Hotspots Mode
     selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options)
     active_water_body = selected_suggested
 
-# 🧭 FIXED GEOLOCATION SEARCH LOOP (Clears coordinates to focus map on chosen lake)
+# 🧭 FIXED GEOLOCATION SEARCH LOOP
 if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"]:
-    lat, lon = None, None  # Clear previous city coordinate memory to force look up on the chosen water body instead
+    lat, lon = None, None  
 
 if not lat and active_water_body and location_name:
     try:
@@ -306,11 +307,12 @@ if lat and lon:
                     live_gauge_data = f"⚓ NOAA Marine Station 9446484 | Current Tide Level: {tide_height} ft above MLLW at {tide_time}"
             except Exception:
                 live_gauge_data = "⚓ NOAA Tides: Marine telemetry link timed out."
-# =====================================================================
+
+        # =====================================================================
         # 🎨 PREMIUM FISHBOX-STYLE DASHBOARD UPGRADE
         # =====================================================================
         
-        # 💉 Inject Custom CSS for Premium Mobile UI Cards (Fixed: changed unsafe_scale to unsafe_allow_html)
+        # 💉 Inject Custom CSS for Premium Mobile UI Cards
         st.markdown("""
             <style>
                 .bite-card {
@@ -368,7 +370,7 @@ if lat and lon:
             </div>
         """, unsafe_allow_html=True)
 
-        # 🗺️ 2. CENTRAL HIGH-RESOLUTION MAPPING MODULE (Fixed: Pushed inside try indentation block)
+        # 🗺️ 2. CENTRAL HIGH-RESOLUTION MAPPING MODULE
         st.markdown(f"### 🗺️ Navigation Hub: {active_water_body}")
         google_maps_url = f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=14&output=embed"
         st.iframe(src=google_maps_url, height=400)
@@ -385,9 +387,9 @@ if lat and lon:
         with m_btn2:
             st.button("📍 Log Secret Waypoint Coordinates", use_container_width=True, disabled=True, help="Waypoint logging database module coming in next phase!")
 
-st.markdown("---")
+        st.markdown("---")
 
-        # 📈 3. COMPACT TABBED DATA INTERFACE
+        # 📈 3. COMPACT TABBED DATA INTERFACE (Fixed: Aligned to 8-space indentation block layout)
         tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs([
             "🌦️ Atmosphere", 
             "🌊 Water Gauges", 
