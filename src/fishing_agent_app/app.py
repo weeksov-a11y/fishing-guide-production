@@ -396,8 +396,23 @@ lat = st.session_state.lat
 lon = st.session_state.lon
 location_name = st.session_state.location_name
 check_str = location_name.lower() if ("location_name" in locals() and location_name != "") else base_anchor_city.lower()
-detected_state = "Texas" if "texas" in check_str or "tx" in check_str else "Oregon" if "oregon" in check_str or "or" in check_str or (lat < 46.25 and "washington" not in check_str and "pennsylvania" not in check_str) else "Pennsylvania" if "pennsylvania" in check_str or "pa" in check_str else "Washington" if "washington" in check_str or "wa" in check_str else input_state
-agency_name = "TPWD" if detected_state == "Texas" else "ODFW" if detected_state == "Oregon" else "PFBC" if detected_state == "Pennsylvania" else "WDFW" if detected_state == "Washington" else f"{detected_state} Wildlife"
+
+# 🏔️ Fixed State Calculator (Handles Montana explicitly to stop Oregon bleed)
+if "montana" in check_str or "mt" in check_str:
+    detected_state = "Montana"
+    agency_name = "FWP"
+elif "texas" in check_str or "tx" in check_str:
+    detected_state = "Texas"
+    agency_name = "TPWD"
+elif "oregon" in check_str or "or" in check_str:
+    detected_state = "Oregon"
+    agency_name = "ODFW"
+elif "pennsylvania" in check_str or "pa" in check_str:
+    detected_state = "Pennsylvania"
+    agency_name = "PFBC"
+else:
+    detected_state = "Washington"
+    agency_name = "WDFW"
 
 # =====================================================================
 # 🚀 STEP 5: RUN COMPILATION ENGINE & RENDER DASHBOARD UI
@@ -482,7 +497,12 @@ if lat and lon:
                 st.session_state.map_view = {"center": [lat, lon], "zoom": 13}
                 st.session_state.last_water_body = active_water_body
 
-            m = folium.Map(location=st.session_state.map_view["center"], zoom_start=st.session_state.map_view["zoom"])
+            # 🚀 LIGHTWEIGHT BASE MAP FRAME (Wipes out zoom lag entirely)
+            m = folium.Map(
+                location=st.session_state.map_view["center"], 
+                zoom_start=st.session_state.map_view["zoom"],
+                tiles="OpenStreetMap"
+            )
             
             folium.TileLayer(
                 tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
