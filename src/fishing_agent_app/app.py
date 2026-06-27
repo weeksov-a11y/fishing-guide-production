@@ -25,6 +25,27 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
+# =====================================================================
+# 🧠 MASTER GLOBAL SESSION STATE INITIALIZATION 
+# =====================================================================
+if "lat" not in st.session_state:
+    st.session_state.lat = 47.2529
+if "lon" not in st.session_state:
+    st.session_state.lon = -122.4443
+if "location_name" not in st.session_state:
+    st.session_state.location_name = "Tacoma, WA"
+
+# Fallback local mirror variables for structural layout routing
+lat = st.session_state.lat
+lon = st.session_state.lon
+location_name = st.session_state.location_name
+
+# 🏎️ Route the AI Scouting Engine through Groq's ultra-fast free tier
+gemini_scout_model = LLM(
+    model="groq/llama-3.1-8b-instant",
+    temperature=0.1
+)
+
 # 🏎️ Route the AI Scouting Engine through Groq's ultra-fast free tier
 gemini_scout_model = LLM(
     model="groq/llama-3.1-8b-instant",
@@ -118,20 +139,6 @@ routing_mode = st.radio(
     horizontal=True
 )
 
-# =====================================================================
-# 🛰️ POSITION MEMORY ANCHORS (Prevents resetting back to Tacoma)
-# =====================================================================
-if "lat" not in st.session_state:
-    st.session_state.lat = 47.2529
-if "lon" not in st.session_state:
-    st.session_state.lon = -122.4443
-if "location_name" not in st.session_state:
-    st.session_state.location_name = "Tacoma, WA"
-
-lat = st.session_state.lat
-lon = st.session_state.lon
-location_name = st.session_state.location_name
-
 water_context = ""
 display_summary = ""
 active_water_body = ""
@@ -147,7 +154,7 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
     
     location_data = streamlit_geolocation()
     
-   if location_data and location_data.get('latitude') is not None:
+    if location_data and location_data.get('latitude') is not None:
         if not active_water_body:
             # 🔒 Save the live coordinates into long-term memory
             st.session_state.lat = float(location_data['latitude'])
