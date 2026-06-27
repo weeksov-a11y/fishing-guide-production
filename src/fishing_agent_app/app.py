@@ -321,9 +321,9 @@ if lat and lon:
         """, unsafe_allow_html=True)
 
         # 🗺️ 2. CENTRAL HIGH-RESOLUTION MAPPING MODULE
-        st.markdown(f"### 🗺️ Navigation Hub: {active_water_body}")
-        google_maps_url = f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=14&output=embed"
-        st.components.v1.iframe(src=google_maps_url, height=400, scrolling=False)
+       st.markdown(f"### 🗺️ Navigation Hub: {active_water_body}")
+google_maps_url = f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=14&output=embed"
+st.iframe(src=google_maps_url, height=400, scrolling=False)
         
         # Action Bar row sitting directly under map frame
         m_btn1, m_btn2 = st.columns(2)
