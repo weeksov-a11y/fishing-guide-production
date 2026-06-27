@@ -355,37 +355,41 @@ if active_water_body and active_water_body != "Current GPS Location":
             osm_res = get_coordinates_from_osm(loose_query)
 
         if osm_res:
-            lat, lon = float(osm_res[0]["lat"]), float(osm_res[0]["lon"])
-            rev_res = get_address_from_gps(lat, lon)
-            address = rev_res.get('address', {})
-            resolved_state = address.get('state', input_state)
-            location_name = f"{address.get('village', address.get('town', address.get('city', 'Local Area')))}, {resolved_state}"
-            display_summary = f"🗺️ Target Water: **{active_water_body}** ({location_name})"
+            st.session_state.lat = float(osm_res[0]["lat"])
+            st.session_state.lon = float(osm_res[0]["lon"])
+            try:
+                rev_res = get_address_from_gps(st.session_state.lat, st.session_state.lon)
+                address = rev_res.get('address', {})
+                resolved_state = address.get('state', input_state)
+                st.session_state.location_name = f"{address.get('village', address.get('town', address.get('city', 'Local Area')))}, {resolved_state}"
+            except Exception:
+                st.session_state.location_name = f"{active_water_body}, {input_state}"
+            
+            display_summary = f"🗺️ Target Water: **{active_water_body}** ({st.session_state.location_name})"
             water_context = f"the specific body of water named {active_water_body} in {input_state}."
     except Exception:
         pass
 else:
-    if not lat and base_anchor_city:
+    if routing_mode != "🛰️ Use My Live GPS Coordinates" and base_anchor_city:
         osm_res = get_coordinates_from_osm(base_anchor_city)
         if osm_res:
-            lat, lon = float(osm_res[0]["lat"]), float(osm_res[0]["lon"])
-            location_name = base_anchor_city
+            st.session_state.lat = float(osm_res[0]["lat"])
+            st.session_state.lon = float(osm_res[0]["lon"])
+            st.session_state.location_name = base_anchor_city
 
+# 🗺️ Hardcoded Target Overrides (For Specific Verified Coordinates)
 if "wallenpaupack" in active_water_body.lower():
     st.session_state.lat, st.session_state.lon = 41.4201, -75.2333
     st.session_state.location_name = "Pocono Mountains, PA"
 elif "green lake" in active_water_body.lower() and "seattle" in base_anchor_city.lower():
     st.session_state.lat, st.session_state.lon = 47.6797, -122.3256
     st.session_state.location_name = "Seattle, WA"
-elif osm_res:
-    st.session_state.lat = float(osm_res[0]["lat"])
-    st.session_state.lon = float(osm_res[0]["lon"])
+elif "elmo" in active_water_body.lower() and ("montana" in input_state.lower() or "mt" in input_state.lower() or "falls" in base_anchor_city.lower()):
+    # Perfect high-precision locking onto Lake Elmo, MT
+    st.session_state.lat, st.session_state.lon = 45.8410, -108.4794
+    st.session_state.location_name = "Billings/Great Falls Region, MT"
 
-if not st.session_state.lat or not st.session_state.lon:
-    st.session_state.lat, st.session_state.lon = 47.2529, -122.4443
-    st.session_state.location_name = "Tacoma, WA"
-
-# Pull the active coordinates out of secure memory storage for the rest of the script
+# Pull the finalized active coordinates out of secure memory storage for layout mapping execution
 lat = st.session_state.lat
 lon = st.session_state.lon
 location_name = st.session_state.location_name
