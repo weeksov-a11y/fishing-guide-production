@@ -8,14 +8,21 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 
-# 🛰️ Native Universal Hardware Geolocation Link
+# =====================================================================
+# 📂 ADVANCED DYNAMIC PACKAGE RESOLUTION RIG
+# =====================================================================
+current_dir = os.path.dirname(os.path.abspath(__file__)) 
+src_dir = os.path.abspath(os.path.join(current_dir, "..")) 
+project_root = os.path.abspath(os.path.join(src_dir, "..")) 
+
+for path in [current_dir, src_dir, project_root]:
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
 from streamlit_geolocation import streamlit_geolocation
 import folium
 from streamlit_folium import st_folium
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
-# 🔑 Load the Groq Key from Secrets Vault
 if "GROQ_API_KEY" in st.secrets:
     os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
@@ -23,7 +30,15 @@ os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
 from crewai import LLM
-from fishing_agent_app.crew import FishingAgentApp
+
+# Flat fallback logic to clear out any resolution or syntax crashes
+try:
+    from fishing_agent_app.crew import FishingAgentApp
+except ModuleNotFoundError:
+    try:
+        from src.fishing_agent_app.crew import FishingAgentApp
+    except ModuleNotFoundError:
+        from crew import FishingAgentApp
 
 # =====================================================================
 # 🧠 MASTER GLOBAL SESSION STATE INITIALIZATION 
@@ -35,12 +50,10 @@ if "lon" not in st.session_state:
 if "location_name" not in st.session_state:
     st.session_state.location_name = "Tacoma, WA"
 
-# Fallback local mirror variables for structural layout routing
 lat = st.session_state.lat
 lon = st.session_state.lon
 location_name = st.session_state.location_name
 
-# 🏎️ Route the AI Scouting Engine through Groq's ultra-fast free tier
 gemini_scout_model = LLM(
     model="groq/llama-3.1-8b-instant",
     temperature=0.1
@@ -56,10 +69,8 @@ st.logo(logo_path)
 # =====================================================================
 # ⚡ CENTRAL ANTI-LAG CACHING MATRIX
 # =====================================================================
-
 @st.cache_data(ttl=600)
 def get_coordinates_from_osm(search_query):
-    """Caches text-to-coordinate lookups to eliminate map pan lag"""
     headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
     try:
         url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(search_query)}&countrycodes=us,ca,mx&format=json&limit=1"
@@ -69,7 +80,6 @@ def get_coordinates_from_osm(search_query):
 
 @st.cache_data(ttl=600)
 def get_address_from_gps(lat, lon):
-    """Caches reverse GPS-to-city lookups"""
     headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
     try:
         url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
@@ -79,7 +89,6 @@ def get_address_from_gps(lat, lon):
 
 @st.cache_data(ttl=600)
 def fetch_cached_weather(lat, lon):
-    """Caches weather data for 10 minutes so map zooming skips internet loading calls"""
     try:
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,cloud_cover,surface_pressure,wind_speed_10m&hourly=surface_pressure,precipitation,temperature_2m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto"
         return requests.get(url, timeout=5).json()
@@ -87,7 +96,7 @@ def fetch_cached_weather(lat, lon):
         return None
 
 # =====================================================================
-# 🗄️ DATABASE SYSTEM (Tiny Local Footprint: ~1KB per catch)
+# 🗄️ DATABASE SYSTEM 
 # =====================================================================
 DB_FILE = "premium_catches.db"
 
@@ -112,10 +121,7 @@ def init_db():
 init_db()
 
 if "scouted_lakes_dict" not in st.session_state:
-    st.session_state.scouted_lakes_dict = {
-        "Freshwater": [],
-        "Saltwater (Marine)": []
-    }
+    st.session_state.scouted_lakes_dict = {"Freshwater": [], "Saltwater (Marine)": []}
 
 STATE_DICTIONARY = {
     "wa": "Washington", "or": "Oregon", "tx": "Texas", "pa": "Pennsylvania",
@@ -124,7 +130,7 @@ STATE_DICTIONARY = {
 }
 
 # =====================================================================
-# 🛰️ STEP 1: LOCATION-FIRST ROUTING MODULE (THE ANCHOR)
+# 🛰️ STEP 1: LOCATION-FIRST ROUTING MODULE 
 # =====================================================================
 st.subheader("📡 Step 1: Destination Routing Mode")
 routing_mode = st.radio(
@@ -135,14 +141,15 @@ routing_mode = st.radio(
 
 water_context = ""
 display_summary = ""
+active_water_body = ""
 base_anchor_city = st.session_state.get("location_name", "Tacoma, WA")
 
-# 🧲 SELECTION INTERCEPT: Instantly pull the active dropdown choice from state memory
-scout_dropdown_val = st.session_state.get(f"sb_hotspots_{routing_mode}_{st.session_state.get('env_choice', 'Freshwater')}_{st.session_state.get('fw_category', '🏡 Lakes')}")
+current_env = st.session_state.get("env_choice", "Freshwater")
+current_cat = st.session_state.get("fw_category", "🏡 Lakes")
+
+scout_dropdown_val = st.session_state.get(f"sb_hotspots_{routing_mode}_{current_env}_{current_cat}")
 if scout_dropdown_val and not scout_dropdown_val.startswith("⚡"):
     active_water_body = scout_dropdown_val
-else:
-    active_water_body = st.session_state.get("last_water_body", "")
 
 if routing_mode == "🛰️ Use My Live GPS Coordinates":
     st.markdown("### 🛰️ Mobile Satellite Link")
@@ -319,30 +326,23 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
                 except Exception:
                     pass
 
-    dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
-    if not dropdown_options:
+    if scout_fingerprint != st.session_state.get("last_scout_fingerprint"):
         dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
-
-    # 🎯 DYNAMIC KEY MATRIX: Changes key signature instantly whenever configurations shift
-    dynamic_widget_key = f"hotspot_select_{routing_mode}_{env_choice}_{fw_category}_{target_fish.replace(' ', '_')}_{base_anchor_city.replace(' ', '_')}"
+    else:
+        dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
+        if not dropdown_options:
+            dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
 
     selected_suggested = st.selectbox(
         "🎯 Tap to select one of your local suggested hotspots:", 
         options=dropdown_options, 
-        key=dynamic_widget_key
+        key=f"sb_hotspots_{routing_mode}_{env_choice}_{fw_category}"
     )
 
-    if selected_suggested and not "⚡" in selected_suggested:
+    if "⚡" in selected_suggested:
+        active_water_body = ""
+    else:
         active_water_body = selected_suggested
-        st.session_state.last_water_body = selected_suggested
-    else:
-        active_water_body = st.session_state.get("last_water_body", dropdown_options[0] if "⚡" not in dropdown_options[0] else "")
-else:
-    if "user_water" in locals() and user_water.strip():
-        active_water_body = user_water.strip()
-        st.session_state.last_water_body = user_water.strip()
-    else:
-        active_water_body = st.session_state.get("last_water_body", "Riffe Lake")
 
 # =====================================================================
 # 🧭 RESOLVE TARGET COORDINATES (GEOLOCATION INTERCEPT PROCESSORS)
@@ -356,7 +356,7 @@ if active_water_body and active_water_body != "Current GPS Location":
         elif env_choice == "Freshwater" and fw_category == "🏡 Lakes" and not re.search(r"\blake\b", query_body, re.IGNORECASE):
             query_body = f"Lake {query_body}"
 
-        search_query = f"{query_body}, {input_state}, water=lake" if (env_choice == "Freshwater" and fw_category == "🏡 Lakes") else f"{query_body}, {input_state}"
+        search_query = f"{query_body}, {input_state}, water=river" if (env_choice == "Freshwater" and fw_category == "🏞️ Rivers") else f"{query_body}, {input_state}"
         
         osm_res = get_coordinates_from_osm(search_query)
         if not osm_res:
@@ -372,8 +372,6 @@ if active_water_body and active_water_body != "Current GPS Location":
                 address = rev_res.get('address', {})
                 resolved_state = address.get('state', input_state)
                 city_name = address.get('village', address.get('town', address.get('city', '')))
-                
-                # 🛡️ JUNK TEXT INTERCEPTOR: If reverse tracking gives empty text, never allow "Local Area" to bleed out
                 if not city_name or city_name.strip() == "":
                     st.session_state.location_name = f"{active_water_body}, {resolved_state}"
                 else:
@@ -506,7 +504,7 @@ if lat and lon:
                 st.session_state.map_view = {"center": [lat, lon], "zoom": 13}
                 st.session_state.last_water_body = active_water_body
 
-            # 🚀 HIGH-CONTRAST GOOGLE MAPS ENGINE (Clear blue water contours, zero pan lag)
+            # 🚀 HIGH-CONTRAST GOOGLE MAPS ENGINE
             m = folium.Map(
                 location=st.session_state.map_view["center"], 
                 zoom_start=st.session_state.map_view["zoom"],
@@ -529,7 +527,6 @@ if lat and lon:
 
             m.add_child(folium.LatLngPopup())
             
-            # 🏎️ THROTTLE RETURN OBJECTS: Eradicates zoom and drag reload loops completely
             map_data = st_folium(
                 m, 
                 width=750, 
