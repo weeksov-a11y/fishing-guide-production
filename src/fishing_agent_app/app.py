@@ -255,12 +255,11 @@ if lat and lon:
                     live_gauge_data = f"⚓ NOAA Marine Station 9446484 | Current Tide Level: {tide_height} ft above MLLW at {tide_time}"
             except Exception:
                 live_gauge_data = "⚓ NOAA Tides: Marine telemetry link timed out."
-
 # =====================================================================
         # 🎨 PREMIUM FISHBOX-STYLE DASHBOARD UPGRADE
         # =====================================================================
         
-        # 💉 Inject Custom CSS for Premium Mobile UI Cards
+        # 💉 Inject Custom CSS for Premium Mobile UI Cards (Fixed: changed unsafe_scale to unsafe_allow_html)
         st.markdown("""
             <style>
                 .bite-card {
@@ -283,22 +282,20 @@ if lat and lon:
                     border: 1px solid #334155;
                 }
             </style>
-        """, unsafe_scale=True)
+        """, unsafe_allow_html=True)
 
         # 🧠 Calculate Dynamic Fishbox Bite Score
-        # Logic: Stable/rising pressure + overcast/partial clouds + low wind = Ideal bite windows
         bite_score = 50  # Base line
         if "Rising" in trend: bite_score += 20
         elif "Stable" in trend: bite_score += 10
-        else: bite_score -= 15  # Rapidly dropping pressure shuts down bites
+        else: bite_score -= 15  
         
         if "Cloudy" in cloud_word or "Overcast" in cloud_word: bite_score += 15
         if current['wind_speed_10m'] < 10: bite_score += 15
         elif current['wind_speed_10m'] > 18: bite_score -= 20
         
-        bite_score = max(10, min(100, bite_score)) # Keep bounds between 10% and 100%
+        bite_score = max(10, min(100, bite_score)) 
         
-        # Set badge colors based on score tiers
         if bite_score >= 75:
             card_border, score_color, rating_text = "#22c55e", "#22c55e", "🏆 EXCELLENT CONDITIONS"
         elif bite_score >= 45:
@@ -320,7 +317,7 @@ if lat and lon:
             </div>
         """, unsafe_allow_html=True)
 
-  # 🗺️ 2. CENTRAL HIGH-RESOLUTION MAPPING MODULE
+        # 🗺️ 2. CENTRAL HIGH-RESOLUTION MAPPING MODULE (Fixed: Pushed inside try indentation block)
         st.markdown(f"### 🗺️ Navigation Hub: {active_water_body}")
         google_maps_url = f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=14&output=embed"
         st.iframe(src=google_maps_url, height=400, scrolling=False)
@@ -339,7 +336,7 @@ if lat and lon:
 
         st.markdown("---")
 
-        # 📈 3. COMPACT TABBED DATA INTERFACE (Replaces long expander lists)
+        # 📈 3. COMPACT TABBED DATA INTERFACE
         tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs([
             "🌦️ Atmosphere", 
             "🌊 Water Gauges", 
@@ -385,7 +382,6 @@ if lat and lon:
                     st.session_state.current_raw_output = raw_output
                     st.success("🎯 Strategy Formulated!")
             
-            # Persist output layout structure across state refreshes cleanly
             if "current_raw_output" in st.session_state:
                 raw_out = st.session_state.current_raw_output
                 if "### 🎣 Tactical Strategy Plan" in raw_out:
