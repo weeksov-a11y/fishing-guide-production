@@ -209,7 +209,7 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
     scout_fingerprint = f"{routing_mode}_{env_choice}_{fw_category}_{target_fish}_{base_anchor_city}"
     
     if st.session_state.get("last_scout_fingerprint") != scout_fingerprint and base_anchor_city != "":
-        # 🚨 Hardcoded Elite Biological Safeties (Washington State Context)
+        # Hardcoded Elite Biological Safeties (Washington State Context)
         if "Channel Catfish" in target_fish and input_state == "Washington":
             st.session_state.scouted_lakes_dict[env_choice] = ["Green Lake (Seattle)", "Sprague Lake", "Swofford Pond"]
             st.session_state.last_scout_fingerprint = scout_fingerprint
@@ -222,7 +222,7 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
         # 🤖 Automated Macro-Scouting Framework 
         else:
             with st.spinner(f"🤖 Auto-Scouting fresh local options near {base_anchor_city}..."):
-                prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, boat launches, or marine zones located within a scenic 50-100 mile driving radius of {base_anchor_city} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers. Example format:\nLake Kapowsin\nAmerican Lake\nSpanaway Lake"
+                prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, boat launches, or marine zones located within a scenic 50-100 mile driving radius of {base_anchor_city} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers."
                 try:
                     scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
                     raw_text = str(scout_res).strip()
@@ -259,18 +259,24 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
 # =====================================================================
 if active_water_body and active_water_body != "Current GPS Location":
     try:
-        query_body = active_water_body.strip()
+        # Clean real estate strings away out of the search context text string loops
+        query_body = re.sub(r"\(Seattle\)", "", active_water_body, flags=re.IGNORECASE).strip()
+        
         if re.search(r"kapow", query_body, re.IGNORECASE): query_body = "Lake Kapowsin"
         elif re.search(r"ohop", query_body, re.IGNORECASE): query_body = "Lake Ohop"
-        elif re.search(r"\blake\b$", query_body, re.IGNORECASE):
-            query_body = f"Lake {re.sub(r'\blake\b$', '', query_body, flags=re.IGNORECASE).strip()}"
-            
-        search_query = f"{query_body}, {input_state}"
+        elif env_choice == "Freshwater" and fw_category == "🏡 Lakes" and not re.search(r"\blake\b", query_body, re.IGNORECASE):
+            query_body = f"Lake {query_body}"
+
+        # 🚨 THE GEOLOCATION FIX: Append strict feature tags to filter away residential houses
+        search_query = f"{query_body}, {input_state}, water=lake" if (env_choice == "Freshwater" and fw_category == "🏡 Lakes") else f"{query_body}, {input_state}"
+        
         headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
         osm_res = requests.get(f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(search_query)}&countrycodes=us,ca,mx&format=json&limit=1", headers=headers).json()
         
+        # Fallback to loose search without feature restrictions if first try blanks out
         if not osm_res:
-            osm_res = requests.get(f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(base_anchor_city)}&countrycodes=us,ca,mx&format=json&limit=1", headers=headers).json()
+            loose_query = f"{query_body}, {input_state}"
+            osm_res = requests.get(f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(loose_query)}&countrycodes=us,ca,mx&format=json&limit=1", headers=headers).json()
 
         if osm_res:
             lat, lon = float(osm_res[0]["lat"]), float(osm_res[0]["lon"])
@@ -286,7 +292,6 @@ if active_water_body and active_water_body != "Current GPS Location":
     except Exception:
         pass
 else:
-    # If using text input and no coordinates found yet, look up the base city to prevent stagnant weather anchors
     if not lat and base_anchor_city:
         try:
             headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
@@ -297,7 +302,14 @@ else:
         except Exception:
             pass
 
-# Final Dynamic Fallback Safety Pin
+# Fallback intercept profiles if name detection completely fails downstream
+if "wallenpaupack" in active_water_body.lower():
+    lat, lon = 41.4201, -75.2333
+    location_name = "Pocono Mountains, PA"
+elif "green lake" in active_water_body.lower() and "seattle" in base_anchor_city.lower():
+    lat, lon = 47.6797, -122.3256
+    location_name = "Seattle, WA"
+
 if not lat or not lon:
     lat, lon = 47.2529, -122.4443
     location_name = "Tacoma, WA"
@@ -317,41 +329,35 @@ agency_name = "TPWD" if detected_state == "Texas" else "ODFW" if detected_state 
 st.subheader("⚡ Step 5: Run Analysis")
 execute_crew = st.button("🚀 Generate Tactical Strategy Plan", type="primary", use_container_width=True)
 
-# FORCE ACCURATE COORDINATES FOR WALLENPAUPACK IF DETECTED BY NAME
-if "wallenpaupack" in active_water_body.lower():
-    lat, lon = 41.4201, -75.2333
-    location_name = "Pocono Mountains, PA"
-
 if lat and lon:
     try:
-        # Fetching weather with both air temperature (temperature_2m) and surface pressure
         weather = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,cloud_cover,surface_pressure,wind_speed_10m&hourly=surface_pressure,precipitation,temperature_2m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto").json()
         current = weather['current']
-        
-        # Calculate barometric trends
         diff = current['surface_pressure'] - weather['hourly']['surface_pressure'][-3]
         trend = "Rising rapidly" if diff > 0.05 else "Rising slowly" if diff > 0.01 else "Falling rapidly" if diff < -0.05 else "Falling slowly" if diff < -0.01 else "Stable"
         cloud_word = "Clear/Sunny" if current['cloud_cover'] < 20 else "Partially Cloudy" if current['cloud_cover'] < 60 else "Overcast"
         
         recent_rain = sum(weather['hourly'].get('precipitation', [0.0])[-12:])
         clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility"
-        
-        # Calculate water and grab precise air temperature
         estimated_water_temp = (0.7 * (sum(weather['hourly']['temperature_2m'][:72]) / 72)) + (0.3 * current['temperature_2m'])
         current_air_temp = current['temperature_2m']
 
-        # Automated USGS Streamgage Radius Fetch
         live_gauge_data = "Station data unavailable for static land locations."
         if env_choice == "Freshwater":
             try:
-                # Widened bounding box slightly to capture mountain lake dams/feeders
-                usgs_res = requests.get(f"https://waterservices.usgs.gov/nwis/iv/?format=json&bBox={lon-0.55:.4f},{lat-0.55:.4f},{lon+0.55:.4f},{lat+0.45:.4f}&parameterCd=00060,00065&siteStatus=active", timeout=6).json()
+                usgs_res = requests.get(f"https://waterservices.usgs.gov/nwis/iv/?format=json&bBox={lon-0.45:.4f},{lat-0.45:.4f},{lon+0.45:.4f},{lat+0.45:.4f}&parameterCd=00060,00065&siteStatus=active", timeout=6).json()
                 time_series = usgs_res.get('value', {}).get('timeSeries', [])
                 if time_series:
                     ts_entry = time_series[0]
                     val = ts_entry['values'][0]['value'][0]['value']
                     unit = "CFS (Flow)" if "00060" in ts_entry['variable']['variableCode'][0]['value'] else "ft (Height)"
-                    live_gauge_data = f"🌊 Gauge: {ts_entry['sourceInfo']['siteName']} | Level: {val} {unit}"
+                    live_gauge_data = f"🌊 Gauge: {ts_entry['sourceInfo']['siteName']} | State: {val} {unit}"
+            except Exception: pass
+        else:
+            try:
+                noaa_res = requests.get("https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?date=latest&range=24&product=water_level&datum=MLLW&units=english&time_zone=lst_ldt&format=json&application=PNWFishingCrew&station=9446484", timeout=5).json()
+                if "data" in noaa_res:
+                    live_gauge_data = f"⚓ NOAA 9446484 | Tide: {noaa_res['data'][-1]['v']} ft above MLLW at {noaa_res['data'][-1]['t']}"
             except Exception: pass
 
         bite_score = max(10, min(100, 50 + (20 if "Rising" in trend else 10 if "Stable" in trend else -15) + (15 if "Cloudy" in cloud_word or "Overcast" in cloud_word else 0) + (15 if current['wind_speed_10m'] < 10 else -20 if current['wind_speed_10m'] > 18 else 0)))
@@ -375,19 +381,20 @@ if lat and lon:
         # 🗺️ DYNAMIC MULTI-STATE / GLOBAL GEOSPATIAL ROUTER INTERFACE
         # =====================================================================
         st.markdown(f"### 🗺️ Navigation Hub: {active_water_body}")
-        st.iframe(src=f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=12&output=embed", height=400)
+        st.iframe(src=f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=14&output=embed", height=400)
         
         clean_lake_name = urllib.parse.quote(active_water_body.strip())
         
+        # 🚨 THE DATA LINK FIX: Point directly to visual data viewers instead of broken landing pages
         if detected_state == "Washington":
-            state_gis_url = f"https://geo.wa.gov/datasets/waecy::lake-bathymetric-contour-lines/about"
-            gis_label = "🌲 Open WA State Contour Portal"
+            state_gis_url = f"https://wdfw.wa.gov/fishing/locations/lowland-lakes"
+            gis_label = "🌲 Launch WDFW Hydro Graphics Portal"
         elif detected_state == "Oregon":
-            state_gis_url = f"https://www.oregongeology.org/sub/publications/LidarLandscapes/index.htm"
-            gis_label = "🌲 Open Oregon Spatial Registry"
+            state_gis_url = f"https://oregonexplorer.info/topics/Water"
+            gis_label = "🌲 Open Oregon Explorer Portal"
         elif detected_state == "Texas":
-            state_gis_url = f"https://www.twdb.texas.gov/surfacewater/surveys/index.asp"
-            gis_label = "🤠 Open Texas TWDB Hydro Surveys"
+            state_gis_url = f"https://tpwd.texas.gov/fishboat/fish/recreational/lakes/"
+            gis_label = "🤠 Open Texas Volumetric Lake Surveys"
         else:
             state_gis_url = f"https://www.google.com/search?q={clean_lake_name}+{detected_state}+depth+contour+map&tbm=isch"
             gis_label = "🔍 Scan Public Contour Archives"
