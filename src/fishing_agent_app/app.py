@@ -168,19 +168,16 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
     
     if st.session_state.get("last_scout_fingerprint") != scout_fingerprint and base_anchor_city != "":
         # 🚨 THE GOLD-STANDARD FIX: Hardcoded Elite Biological Overwrites
-        # If a user selects a highly specific warmwater species, bypass LLM guessing entirely
         if "Channel Catfish" in target_fish and input_state == "Washington":
-            # True premier channel catfish waters within range of Western/Central WA
             st.session_state.scouted_lakes_dict[env_choice] = ["Green Lake (Seattle)", "Sprague Lake", "Swofford Pond"]
             st.session_state.last_scout_fingerprint = scout_fingerprint
             st.rerun()
         elif "Tiger Muskie" in target_fish and input_state == "Washington":
-            # True apex tiger muskie waters managed by WDFW
             st.session_state.scouted_lakes_dict[env_choice] = ["Mayfield Lake", "Merwin Lake", "Newman Lake"]
             st.session_state.last_scout_fingerprint = scout_fingerprint
             st.rerun()
             
-        # 🤖 Fallback to AI loop if a standard species (like Trout or Bass) is selected
+        # 🤖 Fallback to AI loop if a standard species is selected
         else:
             with st.spinner(f"🤖 Auto-Scouting fresh local options near {base_anchor_city}..."):
                 prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, boat launches, or marine zones located within a scenic 50-100 mile driving radius of {base_anchor_city} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers. Example format:\nLake Kapowsin\nAmerican Lake\nSpanaway Lake"
@@ -195,32 +192,26 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
                 except Exception:
                     pass
 
-# ✅ NEW METHOD: Dynamic Instructional Prompts (Saves Data & Cleans UI)
-if scout_fingerprint != st.session_state.get("last_scout_fingerprint"):
-    # If the setup has changed but the auto-scout loop hasn't run its rerun yet, show an empty instructional state
-    dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
-else:
-    # Otherwise, cleanly pull the high-performance targeted results out of memory
-    dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
-    if not dropdown_options:
+    # ✅ DYNAMIC INSTRUCTIONAL PROMPTS (Saves Data & Cleans UI)
+    if scout_fingerprint != st.session_state.get("last_scout_fingerprint"):
         dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
+    else:
+        dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
+        if not dropdown_options:
+            dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
 
-selected_suggested = st.selectbox(
-    "🎯 Tap to select one of your local suggested hotspots:", 
-    options=dropdown_options, 
-    key=f"sb_hotspots_{routing_mode}"
-)
-
-# Safe structural breakout protection block
-if "⚡" in selected_suggested:
-    active_water_body = ""
-else:
-    active_water_body = selected_suggested
-    
+    # ✅ FULLY UNIQUE ELEMENT FINGERPRINT KEYS PREVENT DUPLICATE ERRORS
     selected_suggested = st.selectbox(
-        "🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options, key=f"sb_hotspots_{routing_mode}"
+        "🎯 Tap to select one of your local suggested hotspots:", 
+        options=dropdown_options, 
+        key=f"sb_hotspots_{routing_mode}_{env_choice}_{fw_category}"
     )
-    active_water_body = selected_suggested
+
+    # Safe structural breakout protection block
+    if "⚡" in selected_suggested:
+        active_water_body = ""
+    else:
+        active_water_body = selected_suggested
 
 # =====================================================================
 # 🧭 RESOLVE TARGET COORDINATES (GEOLOCATION & REVERSE PROCESSING)
