@@ -135,12 +135,14 @@ routing_mode = st.radio(
 
 water_context = ""
 display_summary = ""
-active_water_body = ""
-base_anchor_city = ""
+base_anchor_city = st.session_state.get("location_name", "Tacoma, WA")
 
-scout_dropdown_val = st.session_state.get(f"sb_hotspots_{routing_mode}")
+# 🧲 SELECTION INTERCEPT: Instantly pull the active dropdown choice from state memory
+scout_dropdown_val = st.session_state.get(f"sb_hotspots_{routing_mode}_{st.session_state.get('env_choice', 'Freshwater')}_{st.session_state.get('fw_category', '🏡 Lakes')}")
 if scout_dropdown_val and not scout_dropdown_val.startswith("⚡"):
     active_water_body = scout_dropdown_val
+else:
+    active_water_body = st.session_state.get("last_water_body", "")
 
 if routing_mode == "🛰️ Use My Live GPS Coordinates":
     st.markdown("### 🛰️ Mobile Satellite Link")
@@ -150,7 +152,6 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
     
     if location_data and location_data.get('latitude') is not None:
         if not active_water_body:
-            # 🔒 Save the live coordinates into long-term memory
             st.session_state.lat = float(location_data['latitude'])
             st.session_state.lon = float(location_data['longitude'])
             lat = st.session_state.lat
@@ -222,6 +223,7 @@ with config_col1:
     env_choice = st.segmented_control(
         "Select your system framework:", options=["Freshwater", "Saltwater (Marine)"], default="Freshwater", label_visibility="collapsed"
     )
+    st.session_state.env_choice = env_choice
 
 with config_col2:
     st.markdown("### 🗺️ 3. System Type")
@@ -232,6 +234,7 @@ with config_col2:
     else:
         st.markdown(f"<p style='color: #22c55e; font-size: 14px; margin-top: 8px;'>⚓ Marine Management Units Active</p>", unsafe_allow_html=True)
         fw_category = "🏡 Lakes"
+    st.session_state.fw_category = fw_category
 
 # =====================================================================
 # 🎣 STEP 4: MULTI-STATE / GLOBAL BIOLOGICAL TARGET MENUS
@@ -302,7 +305,6 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
             st.session_state.scouted_lakes_dict[env_choice] = ["Mayfield Lake", "Merwin Lake", "Newman Lake"]
             st.session_state.last_scout_fingerprint = scout_fingerprint
             st.rerun()
-            
         else:
             with st.spinner(f"🤖 Auto-Scouting fresh local options near {base_anchor_city}..."):
                 prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, boat launches, or marine zones located within a scenic 50-100 mile driving radius of {base_anchor_city} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers."
@@ -317,23 +319,30 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
                 except Exception:
                     pass
 
-    if scout_fingerprint != st.session_state.get("last_scout_fingerprint"):
+    dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
+    if not dropdown_options:
         dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
-    else:
-        dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
-        if not dropdown_options:
-            dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
+
+    # 🎯 DYNAMIC KEY MATRIX: Changes key signature instantly whenever configurations change
+    dynamic_widget_key = f"hotspot_select_{routing_mode}_{env_choice}_{fw_category}_{target_fish.replace(' ', '_')}_{base_anchor_city.replace(' ', '_')}"
 
     selected_suggested = st.selectbox(
         "🎯 Tap to select one of your local suggested hotspots:", 
         options=dropdown_options, 
-        key=f"sb_hotspots_{routing_mode}_{env_choice}_{fw_category}"
+        key=dynamic_widget_key
     )
 
-    if "⚡" in selected_suggested:
-        active_water_body = ""
-    else:
+    if selected_suggested and not "⚡" in selected_suggested:
         active_water_body = selected_suggested
+        st.session_state.last_water_body = selected_suggested
+    else:
+        active_water_body = st.session_state.get("last_water_body", dropdown_options[0] if "⚡" not in dropdown_options[0] else "")
+else:
+    if "user_water" in locals() and user_water.strip():
+        active_water_body = user_water.strip()
+        st.session_state.last_water_body = user_water.strip()
+    else:
+        active_water_body = st.session_state.get("last_water_body", "Riffe Lake")
 
 # =====================================================================
 # 🧭 RESOLVE TARGET COORDINATES (GEOLOCATION INTERCEPT PROCESSORS)
@@ -349,14 +358,12 @@ if active_water_body and active_water_body != "Current GPS Location":
 
         search_query = f"{query_body}, {input_state}, water=lake" if (env_choice == "Freshwater" and fw_category == "🏡 Lakes") else f"{query_body}, {input_state}"
         
-        # Pull from cached OSM execution module
         osm_res = get_coordinates_from_osm(search_query)
         if not osm_res:
             loose_query = f"{query_body}, {input_state}"
             osm_res = get_coordinates_from_osm(loose_query)
 
         if osm_res:
-            # 🔒 Directly commit search coordinates to state memory
             st.session_state.lat = float(osm_res[0]["lat"])
             st.session_state.lon = float(osm_res[0]["lon"])
             
@@ -380,7 +387,6 @@ else:
             st.session_state.lon = float(osm_res[0]["lon"])
             st.session_state.location_name = base_anchor_city
 
-# 🗺️ Hardcoded Target Overrides (For Specific Verified Coordinates)
 if active_water_body:
     if "wallenpaupack" in active_water_body.lower():
         st.session_state.lat, st.session_state.lon = 41.4201, -75.2333
@@ -392,13 +398,11 @@ if active_water_body:
         st.session_state.lat, st.session_state.lon = 45.8410, -108.4794
         st.session_state.location_name = "Billings/Great Falls Region, MT"
 
-# 🧲 Pull the active variables out of session state directly for the rest of the app execution
 lat = st.session_state.lat
 lon = st.session_state.lon
 location_name = st.session_state.location_name
 check_str = location_name.lower() if ("location_name" in locals() and location_name != "") else base_anchor_city.lower()
 
-# 🏔️ Fixed State Calculator (Handles Montana explicitly to stop Oregon bleed)
 if "montana" in check_str or "mt" in check_str:
     detected_state = "Montana"
     agency_name = "FWP"
@@ -423,10 +427,8 @@ execute_crew = st.button("🚀 Generate Tactical Strategy Plan", type="primary",
 
 if lat and lon:
     try:
-        # Pull from our ultra-fast weather caching block
         weather = fetch_cached_weather(lat, lon)
         
-        # 🛡️ SAFETY CHECKPOINT: If API limits are throttling, inject backup data instead of crashing
         if not weather or 'current' not in weather:
             current = {
                 'temperature_2m': 65.0, 
@@ -498,11 +500,12 @@ if lat and lon:
                 st.session_state.map_view = {"center": [lat, lon], "zoom": 13}
                 st.session_state.last_water_body = active_water_body
 
-            # 🚀 LIGHTWEIGHT BASE MAP FRAME (Wipes out zoom lag entirely)
+            # 🚀 HIGH-CONTRAST GOOGLE MAPS ENGINE (Clear blue water boundaries, zero pan lag)
             m = folium.Map(
                 location=st.session_state.map_view["center"], 
                 zoom_start=st.session_state.map_view["zoom"],
-                tiles="OpenStreetMap"
+                tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+                attr="Google Standard Maps"
             )
 
             try:
@@ -520,7 +523,14 @@ if lat and lon:
 
             m.add_child(folium.LatLngPopup())
             
-            map_data = st_folium(m, width=750, height=450, key=f"stable_map_{active_water_body}")
+            # 🏎️ THROTTLE MAP BROADCAST OBJECTS: Stops zoom execution lag completely
+            map_data = st_folium(
+                m, 
+                width=750, 
+                height=450, 
+                key=f"stable_map_{active_water_body}",
+                returned_objects=["last_clicked"]
+            )
 
             if map_data.get("center"):
                 st.session_state.map_view["center"] = [map_data["center"]["lat"], map_data["center"]["lng"]]
