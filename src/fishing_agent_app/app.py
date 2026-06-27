@@ -207,32 +207,15 @@ else: # 🔍 Suggest Local Hotspots Mode
     selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options)
     active_water_body = selected_suggested
 
-# 🧭 FIXED GEOLOCATION SEARCH LOOP WITH STATEWIDE ROUTING & LAKE INVERSION
+# =====================================================================
+# 🧭 UPGRADED GEOLOCATION SEARCH LOOP (IMPLEMENTS STATEWIDE SCAN)
+# =====================================================================
 if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"]:
     lat, lon = None, None  
 
 if not lat and active_water_body and location_name:
     try:
-        if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"] and "GPS Location" not in active_water_body:
-            # 🔄 Clean up common naming variations for mapping engines
-            query_body = active_water_body.strip()
-            
-            if re.search(r"kapow", query_body, re.IGNORECASE):
-                query_body = "Lake Kapowsin"
-            elif re.search(r"ohop", query_body, re.IGNORECASE):
-                query_body = "Lake Ohop"
-            # If user typed "Something Lake", invert it to "Lake Something" for standard GIS matching
-            elif re.search(r"\blake\b$", query_body, re.IGNORECASE):
-                base_name = re.sub(r"\blake\b$", "", query_body, flags=re.IGNORECASE).strip()
-                query_body = f"Lake {base_name}"
-                
-# 🧭 FIXED GEOLOCATION SEARCH LOOP WITH STATEWIDE ROUTING & DYNAMIC WEATHER CORRECTION
-if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"]:
-    lat, lon = None, None  
-
-if not lat and active_water_body and location_name:
-    try:
-        # Extract the state from the user's input box text (e.g., "Tacoma Wa" -> "Washington")
+        # Step A: Parse input to safely determine the baseline fallback state framework
         input_state = "Oregon" if re.search(r"\b(or|oregon)\b", location_name, re.IGNORECASE) else "Washington"
         
         if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"] and "GPS Location" not in active_water_body:
@@ -251,13 +234,13 @@ if not lat and active_water_body and location_name:
         else:
             search_query = location_name
 
-        # 🛰️ Call Forward Geocoding to locate the lake anywhere inside the verified state
+        # Step B: Locate the lake anywhere inside the verified state boundary
         encoded_query = urllib.parse.quote(search_query.strip())
         headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
         osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_query}&countrycodes=us&format=json&addressdetails=1&limit=1"
         osm_res = requests.get(osm_url, headers=headers).json()
         
-        # Fallback to loose search if explicit query misses
+        # Safe fallback lookup check
         if not osm_res or len(osm_res) == 0:
             encoded_city = urllib.parse.quote(location_name.strip())
             osm_url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&countrycodes=us&format=json&addressdetails=1&limit=1"
@@ -267,19 +250,17 @@ if not lat and active_water_body and location_name:
             lat = float(osm_res[0]["lat"])
             lon = float(osm_res[0]["lon"])
             
-            # 🔄 YOUR FEATURE: Reverse-geocode the lake coordinates to find the true local town for weather!
+            # 🔄 YOUR RULE OVERRIDE: Reverse-geocode the lake coordinates to rewrite the true closest city!
             try:
                 rev_url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
                 rev_res = requests.get(rev_url, headers=headers).json()
                 address = rev_res.get('address', {})
-                # Grab the village, town, or city right next to the water structure
                 true_town = address.get('village', address.get('town', address.get('city', 'Local Area')))
                 true_state = address.get('state', input_state)
                 
-                # Overwrite layout configuration names with the lake's true geographic location context
                 location_name = f"{true_town}, {true_state}"
             except Exception:
-                pass # Gracefully retain baseline manual input text if reverse lookup times out
+                pass 
                 
             if routing_mode != "🛰️ Use My Live GPS Coordinates":
                 display_summary = f"🗺️ Target Water: **{active_water_body}** ({location_name})"
@@ -288,7 +269,7 @@ if not lat and active_water_body and location_name:
             lat, lon = 47.2529, -122.4443 
     except Exception:
         lat, lon = 47.2529, -122.4443
-        
+
 # 🌲 JURISDICTION ROUTER
 if lat is not None:
     if "oregon" in location_name.lower() or "or" in location_name.lower() or lat < 46.25:
@@ -439,7 +420,7 @@ if lat and lon:
 
         st.markdown("---")
 
-        # 📈 3. COMPACT TABBED DATA INTERFACE (Fixed: Aligned to 8-space indentation block layout)
+        # 📈 3. COMPACT TABBED DATA INTERFACE
         tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs([
             "🌦️ Atmosphere", 
             "🌊 Water Gauges", 
