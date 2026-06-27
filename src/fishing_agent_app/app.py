@@ -118,7 +118,20 @@ routing_mode = st.radio(
     horizontal=True
 )
 
-lat, lon, location_name = None, None, ""
+# =====================================================================
+# 🛰️ POSITION MEMORY ANCHORS (Prevents resetting back to Tacoma)
+# =====================================================================
+if "lat" not in st.session_state:
+    st.session_state.lat = 47.2529
+if "lon" not in st.session_state:
+    st.session_state.lon = -122.4443
+if "location_name" not in st.session_state:
+    st.session_state.location_name = "Tacoma, WA"
+
+lat = st.session_state.lat
+lon = st.session_state.lon
+location_name = st.session_state.location_name
+
 water_context = ""
 display_summary = ""
 active_water_body = ""
@@ -134,18 +147,26 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
     
     location_data = streamlit_geolocation()
     
-    if location_data and location_data.get('latitude') is not None:
+   if location_data and location_data.get('latitude') is not None:
         if not active_water_body:
-            lat = float(location_data['latitude'])
-            lon = float(location_data['longitude'])
+            # 🔒 Save the live coordinates into long-term memory
+            st.session_state.lat = float(location_data['latitude'])
+            st.session_state.lon = float(location_data['longitude'])
+            lat = st.session_state.lat
+            lon = st.session_state.lon
             
-            # Using cached reverse lookup function
-            rev_res = get_address_from_gps(lat, lon)
-            address = rev_res.get('address', {})
-            city = address.get('city', address.get('town', address.get('village', 'Unknown Area')))
-            state = address.get('state', 'Washington')
-            location_name = f"{city}, {state}"
-            
+            try:
+                headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
+                rev_res = get_address_from_gps(lat, lon)
+                address = rev_res.get('address', {})
+                city = address.get('city', address.get('town', address.get('village', 'Unknown Area')))
+                state = address.get('state', 'Washington')
+                st.session_state.location_name = f"{city}, {state}"
+                location_name = st.session_state.location_name
+            except Exception:
+                st.session_state.location_name = "Tacoma, WA"
+                location_name = st.session_state.location_name
+                
             active_water_body = "Current GPS Location"
             water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f} near {location_name}."
             display_summary = f"🎯 Universal Position Locked: **{location_name}** ({lat:.4f}, {lon:.4f})"
@@ -344,15 +365,23 @@ else:
             location_name = base_anchor_city
 
 if "wallenpaupack" in active_water_body.lower():
-    lat, lon = 41.4201, -75.2333
-    location_name = "Pocono Mountains, PA"
+    st.session_state.lat, st.session_state.lon = 41.4201, -75.2333
+    st.session_state.location_name = "Pocono Mountains, PA"
 elif "green lake" in active_water_body.lower() and "seattle" in base_anchor_city.lower():
-    lat, lon = 47.6797, -122.3256
-    location_name = "Seattle, WA"
+    st.session_state.lat, st.session_state.lon = 47.6797, -122.3256
+    st.session_state.location_name = "Seattle, WA"
+elif osm_res:
+    st.session_state.lat = float(osm_res[0]["lat"])
+    st.session_state.lon = float(osm_res[0]["lon"])
 
-if not lat or not lon:
-    lat, lon = 47.2529, -122.4443
-    location_name = "Tacoma, WA"
+if not st.session_state.lat or not st.session_state.lon:
+    st.session_state.lat, st.session_state.lon = 47.2529, -122.4443
+    st.session_state.location_name = "Tacoma, WA"
+
+# Pull the active coordinates out of secure memory storage for the rest of the script
+lat = st.session_state.lat
+lon = st.session_state.lon
+location_name = st.session_state.location_name
 
 check_str = location_name.lower() if ("location_name" in locals() and location_name != "") else base_anchor_city.lower()
 detected_state = "Texas" if "texas" in check_str or "tx" in check_str else "Oregon" if "oregon" in check_str or "or" in check_str or (lat < 46.25 and "washington" not in check_str and "pennsylvania" not in check_str) else "Pennsylvania" if "pennsylvania" in check_str or "pa" in check_str else "Washington" if "washington" in check_str or "wa" in check_str else input_state
