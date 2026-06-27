@@ -395,11 +395,13 @@ if lat and lon:
             "🚨 Game Rules"
         ])
 
-        with tab_cond:
+    with tab_cond:
             st.caption(f"🗺️ Base Coordinates Locked: {lat:.4f}, {lon:.4f} | Jurisdiction: {detected_state}")
             w_col1, w_col2, w_col3 = st.columns(3)
             with w_col1:
+                # Displays both critical temperatures in a single, clean stack
                 st.metric(label="🌡️ Calculated Water Temp", value=f"{estimated_water_temp:.1f}°F")
+                st.metric(label="🌤️ Outside Air Temp", value=f"{current['temperature_2m']:.1f}°F")
             with w_col2:
                 st.metric(label="💨 Wind Velocity", value=f"{current['wind_speed_10m']} mph")
             with w_col3:
