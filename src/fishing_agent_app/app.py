@@ -101,6 +101,12 @@ input_state = "Oregon" if re.search(r"\b(or|oregon)\b", location_name, re.IGNORE
 if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"]:
     lat, lon = None, None  
 
+# 🔄 THE FIX: Catch instances where a user is in GPS mode but has actively picked an auto-scouted lake
+if routing_mode == "🛰️ Use My Live GPS Coordinates" and "scouted_lakes_dict" in st.session_state:
+    # If the active water body name has switched away from generic "Current GPS Location", clear lat/lon to force lake lock
+    if active_water_body not in ["", "Current GPS Location", "Suggested Spot"]:
+        lat, lon = None, None
+
 if not lat and active_water_body and location_name and active_water_body != "Suggested Spot":
     try:
         query_body = active_water_body.strip()
