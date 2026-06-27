@@ -46,12 +46,6 @@ gemini_scout_model = LLM(
     temperature=0.1
 )
 
-# 🏎️ Route the AI Scouting Engine through Groq's ultra-fast free tier
-gemini_scout_model = LLM(
-    model="groq/llama-3.1-8b-instant",
-    temperature=0.1
-)
-
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
 st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="wide")
 st.title("🎣 Mobile Fishing Advisor")
@@ -178,14 +172,21 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
             water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f} near {location_name}."
             display_summary = f"🎯 Universal Position Locked: **{location_name}** ({lat:.4f}, {lon:.4f})"
         else:
-            lat, lon = None, None
-            location_name = "Tacoma, WA" 
+            lat = st.session_state.lat
+            lon = st.session_state.lon
+            location_name = st.session_state.location_name
+            
         base_anchor_city = location_name
         st.success("🔒 Satellite Handshake Verified")
     else:
-        location_name = "Tacoma, WA"
-        base_anchor_city = "Tacoma, WA"
-        st.write("⏳ *Awaiting satellite link activation click above...*")
+        if not st.session_state.get("lat"):
+            st.session_state.lat = 47.2529
+            st.session_state.lon = -122.4443
+            st.session_state.location_name = "Tacoma, WA"
+        lat = st.session_state.lat
+        lon = st.session_state.lon
+        location_name = st.session_state.location_name
+        base_anchor_city = location_name
 
 elif routing_mode == "📝 Enter a Specific Water Body By Name":
     user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Puyallup River")
@@ -491,7 +492,7 @@ if lat and lon:
         m_col1, m_col2 = st.columns([2, 1])
         
         with m_col1:
-            st.markdown(f"### 🛰️ Interactive Hybrid Survey Grid: {active_water_body}")
+            st.markdown(f"### 🛰️ Interactive Survey Grid: {active_water_body}")
             
             if "map_view" not in st.session_state or st.session_state.get("last_water_body") != active_water_body:
                 st.session_state.map_view = {"center": [lat, lon], "zoom": 13}
@@ -503,14 +504,6 @@ if lat and lon:
                 zoom_start=st.session_state.map_view["zoom"],
                 tiles="OpenStreetMap"
             )
-            
-            folium.TileLayer(
-                tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-                attr="Google Hybrid Imagery Engine",
-                name="Google Hybrid Layers",
-                overlay=False,
-                control=True
-            ).add_to(m)
 
             try:
                 conn = sqlite3.connect(DB_FILE)
@@ -581,7 +574,7 @@ if lat and lon:
         with b_col1: 
             st.link_button(gis_label, state_gis_url, use_container_width=True)
         with b_col2: 
-            st.link_button("🚙 Launch Phone GPS Route", f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}&query={urllib.parse.quote(active_water_body + ' public boat launch')}", use_container_width=True, type="primary")
+            st.link_button("🚙 Launch Phone GPS Route", f"http://maps.google.com/?q={lat},{lon}", use_container_width=True, type="primary")
 
         st.markdown("---")
         tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs(["🌦️ Atmosphere", "🌊 Water Gauges", "🎣 Tactical Strategy", "🚨 Game Rules"])
@@ -607,6 +600,6 @@ if lat and lon:
         with tab_rules:
             if "current_raw_output" in st.session_state and "### 🎣 Tactical Strategy Plan" in st.session_state.current_raw_output:
                 st.markdown(st.session_state.current_raw_output.split("### 🎣 Tactical Strategy Plan")[0].replace("### 🚨 Regional Legal Compliance Guardrails & Location Suggestions", "").strip())
-            else: st.warning(f"Verify rules on your native {agency_name} dashboard.")
+            else: st.warning(f"Verify rules on your native dashboard.")
 
     except Exception as err: st.error(f"Telemetry stream failed: {err}")
