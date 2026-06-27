@@ -316,15 +316,17 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
                 except Exception:
                     pass
 
-    dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
+   dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
     if not dropdown_options:
         dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
 
-    # 🔗 KEY BINDING: Force the selectbox to dynamically update a session state key immediately upon change
+    # 🎯 DYNAMIC KEY MATRIX: Changes instantly whenever any configurations shift
+    dynamic_widget_key = f"hotspot_select_{routing_mode}_{env_choice}_{fw_category}_{target_fish.replace(' ', '_')}_{base_anchor_city.replace(' ', '_')}"
+
     selected_suggested = st.selectbox(
         "🎯 Tap to select one of your local suggested hotspots:", 
         options=dropdown_options, 
-        key="active_hotspot_selection"
+        key=dynamic_widget_key
     )
 
     if selected_suggested and not "⚡" in selected_suggested:
@@ -332,7 +334,6 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
         st.session_state.last_water_body = selected_suggested
     else:
         active_water_body = st.session_state.get("last_water_body", dropdown_options[0] if "⚡" not in dropdown_options[0] else "")
-else:
     # If using text input mode
     if "user_water" in locals() and user_water.strip():
         active_water_body = user_water.strip()
