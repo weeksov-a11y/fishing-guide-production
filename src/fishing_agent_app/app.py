@@ -317,34 +317,41 @@ agency_name = "TPWD" if detected_state == "Texas" else "ODFW" if detected_state 
 st.subheader("⚡ Step 5: Run Analysis")
 execute_crew = st.button("🚀 Generate Tactical Strategy Plan", type="primary", use_container_width=True)
 
+# FORCE ACCURATE COORDINATES FOR WALLENPAUPACK IF DETECTED BY NAME
+if "wallenpaupack" in active_water_body.lower():
+    lat, lon = 41.4201, -75.2333
+    location_name = "Pocono Mountains, PA"
+
 if lat and lon:
     try:
+        # Fetching weather with both air temperature (temperature_2m) and surface pressure
         weather = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,cloud_cover,surface_pressure,wind_speed_10m&hourly=surface_pressure,precipitation,temperature_2m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto").json()
         current = weather['current']
+        
+        # Calculate barometric trends
         diff = current['surface_pressure'] - weather['hourly']['surface_pressure'][-3]
         trend = "Rising rapidly" if diff > 0.05 else "Rising slowly" if diff > 0.01 else "Falling rapidly" if diff < -0.05 else "Falling slowly" if diff < -0.01 else "Stable"
         cloud_word = "Clear/Sunny" if current['cloud_cover'] < 20 else "Partially Cloudy" if current['cloud_cover'] < 60 else "Overcast"
         
         recent_rain = sum(weather['hourly'].get('precipitation', [0.0])[-12:])
         clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility"
+        
+        # Calculate water and grab precise air temperature
         estimated_water_temp = (0.7 * (sum(weather['hourly']['temperature_2m'][:72]) / 72)) + (0.3 * current['temperature_2m'])
+        current_air_temp = current['temperature_2m']
 
+        # Automated USGS Streamgage Radius Fetch
         live_gauge_data = "Station data unavailable for static land locations."
         if env_choice == "Freshwater":
             try:
-                usgs_res = requests.get(f"https://waterservices.usgs.gov/nwis/iv/?format=json&bBox={lon-0.45:.4f},{lat-0.45:.4f},{lon+0.45:.4f},{lat+0.45:.4f}&parameterCd=00060,00065&siteStatus=active", timeout=6).json()
+                # Widened bounding box slightly to capture mountain lake dams/feeders
+                usgs_res = requests.get(f"https://waterservices.usgs.gov/nwis/iv/?format=json&bBox={lon-0.55:.4f},{lat-0.55:.4f},{lon+0.55:.4f},{lat+0.45:.4f}&parameterCd=00060,00065&siteStatus=active", timeout=6).json()
                 time_series = usgs_res.get('value', {}).get('timeSeries', [])
                 if time_series:
                     ts_entry = time_series[0]
                     val = ts_entry['values'][0]['value'][0]['value']
                     unit = "CFS (Flow)" if "00060" in ts_entry['variable']['variableCode'][0]['value'] else "ft (Height)"
-                    live_gauge_data = f"🌊 Gauge: {ts_entry['sourceInfo']['siteName']} | State: {val} {unit}"
-            except Exception: pass
-        else:
-            try:
-                noaa_res = requests.get("https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?date=latest&range=24&product=water_level&datum=MLLW&units=english&time_zone=lst_ldt&format=json&application=PNWFishingCrew&station=9446484", timeout=5).json()
-                if "data" in noaa_res:
-                    live_gauge_data = f"⚓ NOAA 9446484 | Tide: {noaa_res['data'][-1]['v']} ft above MLLW at {noaa_res['data'][-1]['t']}"
+                    live_gauge_data = f"🌊 Gauge: {ts_entry['sourceInfo']['siteName']} | Level: {val} {unit}"
             except Exception: pass
 
         bite_score = max(10, min(100, 50 + (20 if "Rising" in trend else 10 if "Stable" in trend else -15) + (15 if "Cloudy" in cloud_word or "Overcast" in cloud_word else 0) + (15 if current['wind_speed_10m'] < 10 else -20 if current['wind_speed_10m'] > 18 else 0)))
@@ -368,7 +375,7 @@ if lat and lon:
         # 🗺️ DYNAMIC MULTI-STATE / GLOBAL GEOSPATIAL ROUTER INTERFACE
         # =====================================================================
         st.markdown(f"### 🗺️ Navigation Hub: {active_water_body}")
-        st.iframe(src=f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=14&output=embed", height=400)
+        st.iframe(src=f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=12&output=embed", height=400)
         
         clean_lake_name = urllib.parse.quote(active_water_body.strip())
         
@@ -382,7 +389,6 @@ if lat and lon:
             state_gis_url = f"https://www.twdb.texas.gov/surfacewater/surveys/index.asp"
             gis_label = "🤠 Open Texas TWDB Hydro Surveys"
         else:
-            # 🌎 UNIVERSAL FALLBACK ENGINE: Secure web redirection mapping target to image layers smoothly
             state_gis_url = f"https://www.google.com/search?q={clean_lake_name}+{detected_state}+depth+contour+map&tbm=isch"
             gis_label = "🔍 Scan Public Contour Archives"
 
@@ -397,10 +403,11 @@ if lat and lon:
 
         with tab_cond:
             st.caption(f"🗺️ Position Fixed: {lat:.4f}, {lon:.4f} | Region Context: {location_name}")
-            w_col1, w_col2, w_col3 = st.columns(3)
+            w_col1, w_col2, w_col3, w_col4 = st.columns(4)
             w_col1.metric("🌡️ Water Temp", f"{estimated_water_temp:.1f}°F")
-            w_col2.metric("💨 Wind", f"{current['wind_speed_10m']} mph")
-            w_col3.metric("☁️ Sky", cloud_word)
+            w_col2.metric("🌤️ Air Temp", f"{current_air_temp:.1f}°F")
+            w_col3.metric("💨 Wind", f"{current['wind_speed_10m']} mph")
+            w_col4.metric("☁️ Sky", cloud_word)
 
         with tab_hydro: st.info(live_gauge_data)
 
