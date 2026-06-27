@@ -28,16 +28,17 @@ gemini_scout_model = LLM(
 )
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
-st.set_page_config(page_title="PNW Mobile Fishing Crew", page_icon=logo_path, layout="centered")
+st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="centered")
 st.title("🎣 Mobile Fishing Advisor")
 
 app_base_url = "https://fishing-guide.streamlit.app"
 st.logo(logo_path) 
 
+# Ensure our global caching dictionary exists
 if "scouted_lakes_dict" not in st.session_state:
     st.session_state.scouted_lakes_dict = {
-        "Freshwater": ["Spanaway Lake", "American Lake", "Lake Kapowsin"],
-        "Saltwater (Marine)": ["Marine Area 11 (Tacoma)", "Marine Area 13 (Olympia)", "Point Defiance Pier"]
+        "Freshwater": [],
+        "Saltwater (Marine)": []
     }
 
 # =====================================================================
@@ -46,7 +47,7 @@ if "scouted_lakes_dict" not in st.session_state:
 st.subheader("📡 Step 1: Destination Routing Mode")
 routing_mode = st.radio(
     "How do you want to set your fishing location?",
-    options=["🛰️ Use My Live GPS Coordinates", "✍️ Enter a Specific Water Body By Name", "🔍 Suggest Local Hotspots"],
+    options=["🛰️ Use My Live GPS Coordinates", "📝 Enter a Specific Water Body By Name", "🔍 Suggest Local Hotspots"],
     horizontal=True
 )
 
@@ -58,7 +59,7 @@ base_anchor_city = ""
 
 # Pre-evaluate dropdown selection hooks from session state early
 scout_dropdown_val = st.session_state.get(f"sb_hotspots_{routing_mode}")
-if scout_dropdown_val and scout_dropdown_val not in ["Spanaway Lake", "American Lake", "Lake Kapowsin", "Marine Area 11 (Tacoma)", "Marine Area 13 (Olympia)", "Point Defiance Pier"]:
+if scout_dropdown_val and not scout_dropdown_val.startswith("⚡"):
     active_water_body = scout_dropdown_val
 
 if routing_mode == "🛰️ Use My Live GPS Coordinates":
@@ -83,6 +84,9 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
             active_water_body = "Current GPS Location"
             water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f} near {location_name}."
             display_summary = f"🎯 Universal Position Locked: **{location_name}** ({lat:.4f}, {lon:.4f})"
+        else:
+            lat, lon = None, None
+            location_name = "Tacoma, WA" 
         base_anchor_city = location_name
         st.success("🔒 Satellite Handshake Verified")
     else:
@@ -90,7 +94,7 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
         base_anchor_city = "Tacoma, WA"
         st.write("⏳ *Awaiting satellite link activation click above...*")
 
-elif routing_mode == "✍️ Enter a Specific Water Body By Name":
+elif routing_mode == "📝 Enter a Specific Water Body By Name":
     user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Puyallup River")
     manual_city = st.text_input("📍 Your Base Camp / Closest City (Sets State Jurisdiction):", value="Tacoma, WA")
     location_name = manual_city
@@ -103,8 +107,17 @@ else: # 🔍 Suggest Local Hotspots Mode
     location_name = manual_city
     base_anchor_city = manual_city
 
-# Determine input baseline state framework
-input_state = "Oregon" if re.search(r"\b(or|oregon)\b", base_anchor_city, re.IGNORECASE) else "Washington"
+# Resolve input operating state cleanly
+if base_anchor_city:
+    state_match = re.search(r",\s*([A-Za-z\s]+)$", base_anchor_city)
+    input_state = state_match.group(1).strip() if state_match else base_anchor_city
+else:
+    input_state = "Washington"
+
+# Short-code normalization to protect matching layers
+if input_state.lower() in ["tx", "texas"]: input_state = "Texas"
+elif input_state.lower() in ["or", "oregon"]: input_state = "Oregon"
+elif input_state.lower() in ["wa", "washington"]: input_state = "Washington"
 
 # =====================================================================
 # 🎨 STEP 2 & 3: DYNAMIC CONFIGURATION WINDOWS
@@ -129,45 +142,58 @@ with config_col2:
         fw_category = "🏡 Lakes"
 
 # =====================================================================
-# 🎣 STEP 4: EXPANDED BIOLOGICAL TARGET MENUS
+# 🎣 STEP 4: MULTI-STATE / GLOBAL BIOLOGICAL TARGET MENUS
 # =====================================================================
 st.markdown("---")
-st.markdown(f"### 🎣 4. Select Target Species ({input_state} Legal Catalog)")
+st.markdown(f"### 🎣 4. Select Target Species ({input_state} Catalog)")
 
 if input_state == "Washington":
     if env_choice == "Freshwater":
         if fw_category == "🏞️ Rivers":
             species_options = ["King Salmon (Chinook)", "Silver Salmon (Coho)", "Pink Salmon", "Chum Salmon", "Sockeye Salmon", "Summer Steelhead", "Winter Steelhead", "Coastal Cutthroat", "White Sturgeon"]
-            default_species = "Silver Salmon (Coho)"
         else:
             species_options = ["Rainbow Trout", "Cutthroat Trout", "Brown Trout", "Brook Trout", "Kokanee", "Crappie", "Largemouth Bass", "Smallmouth Bass", "Yellow Perch", "Walleye", "Channel Catfish", "Bluegill/Sunfish", "Tiger Muskie"]
-            default_species = "Crappie"
     else:
         species_options = ["Resident Coho Salmon", "Blackmouth (Chinook)", "Puget Sound Surfperch", "Flounder", "Spiny Dogfish", "Lingcod", "Cabezon", "Halibut"]
-        default_species = "Resident Coho Salmon"
-else:
+
+elif input_state == "Oregon":
     if env_choice == "Freshwater":
         if fw_category == "🏞️ Rivers":
             species_options = ["Spring Chinook", "Fall Chinook", "Coho Salmon", "Winter Steelhead", "Summer Steelhead", "White Sturgeon", "American Shad"]
-            default_species = "Coho Salmon"
         else:
             species_options = ["Rainbow Trout", "Brown Trout", "Brook Trout", "Lake Trout (Mackinaw)", "Kokanee", "Largemouth Bass", "Smallmouth Bass", "Crappie", "Yellow Perch", "Walleye", "Channel Catfish", "Bluegill"]
-            default_species = "Crappie"
     else:
         species_options = ["Ocean Chinook", "Ocean Coho", "Rockfish (Black/Blue)", "Lingcod", "Pacific Halibut", "Surfperch", "Greenling"]
-        default_species = "Ocean Coho"
 
+elif input_state == "Texas":
+    if env_choice == "Freshwater":
+        if fw_category == "🏞️ Rivers":
+            species_options = ["Alligator Gar", "Striped Bass", "White Bass", "Guadalupe Bass", "Channel Catfish", "Flathead Catfish", "Blue Catfish"]
+        else:
+            species_options = ["Largemouth Bass", "Smallmouth Bass", "Spotted Bass", "White Crappie", "Black Crappie", "Bluegill", "Channel Catfish", "Blue Catfish", "Hybrid Striped Bass", "Walleye"]
+    else:
+        species_options = ["Red Drum (Redfish)", "Spotted Seatrout", "Black Drum", "Flounder", "Sheepshead", "King Mackerel", "Cobias", "Snapper (Red)"]
+
+else: # 🌎 UNIVERSAL GLOBAL FALLBACK MATRIX FOR UNMAPPED REGIONS
+    if env_choice == "Freshwater":
+        if fw_category == "🏞️ Rivers":
+            species_options = ["Salmon", "Steelhead", "River Trout", "Smallmouth Bass", "Striper", "Catfish", "Walleye"]
+        else:
+            species_options = ["Largemouth Bass", "Smallmouth Bass", "Rainbow Trout", "Crappie", "Panfish/Bluegill", "Walleye", "Northern Pike", "Catfish"]
+    else:
+        species_options = ["Coastal Gamefish", "Inshore Sea Trout", "Snook/Redfish", "Striper", "Flounder", "Rockfish/Cod", "Deep Sea Pelagic"]
+
+default_species = species_options[0] if species_options else ""
 target_fish = st.pills("Choose your target profile:", options=species_options, default=default_species, label_visibility="collapsed")
 
 # =====================================================================
 # ⚙️ AUTOMATED RADAR SCOUT ENGINE WITH HARDCODED BIOLOGICAL OVERRIDES
 # =====================================================================
 if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coordinates"]:
-    # 🚀 STABILIZED FINGERPRINT: Anchored to base input parameters to prevent layout loop lock
     scout_fingerprint = f"{routing_mode}_{env_choice}_{fw_category}_{target_fish}_{base_anchor_city}"
     
     if st.session_state.get("last_scout_fingerprint") != scout_fingerprint and base_anchor_city != "":
-        # 🚨 THE GOLD-STANDARD FIX: Hardcoded Elite Biological Overwrites
+        # 🚨 Hardcoded Elite Biological Safeties (Washington State Context)
         if "Channel Catfish" in target_fish and input_state == "Washington":
             st.session_state.scouted_lakes_dict[env_choice] = ["Green Lake (Seattle)", "Sprague Lake", "Swofford Pond"]
             st.session_state.last_scout_fingerprint = scout_fingerprint
@@ -177,7 +203,7 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
             st.session_state.last_scout_fingerprint = scout_fingerprint
             st.rerun()
             
-        # 🤖 Fallback to AI loop if a standard species is selected
+        # 🤖 Automated Macro-Scouting Framework 
         else:
             with st.spinner(f"🤖 Auto-Scouting fresh local options near {base_anchor_city}..."):
                 prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, boat launches, or marine zones located within a scenic 50-100 mile driving radius of {base_anchor_city} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers. Example format:\nLake Kapowsin\nAmerican Lake\nSpanaway Lake"
@@ -200,14 +226,13 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
         if not dropdown_options:
             dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
 
-    # ✅ FULLY UNIQUE ELEMENT FINGERPRINT KEYS PREVENT DUPLICATE ERRORS
+    # ✅ FULLY UNIQUE ELEMENT FINGERPRINT KEYS PREVENT DUPLICATE ERRS
     selected_suggested = st.selectbox(
         "🎯 Tap to select one of your local suggested hotspots:", 
         options=dropdown_options, 
         key=f"sb_hotspots_{routing_mode}_{env_choice}_{fw_category}"
     )
 
-    # Safe structural breakout protection block
     if "⚡" in selected_suggested:
         active_water_body = ""
     else:
@@ -226,17 +251,18 @@ if active_water_body and active_water_body != "Current GPS Location":
             
         search_query = f"{query_body}, {input_state}"
         headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
-        osm_res = requests.get(f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(search_query)}&countrycodes=us&format=json&limit=1", headers=headers).json()
+        osm_res = requests.get(f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(search_query)}&countrycodes=us,ca,mx&format=json&limit=1", headers=headers).json()
         
         if not osm_res:
-            osm_res = requests.get(f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(base_anchor_city)}&countrycodes=us&format=json&limit=1", headers=headers).json()
+            osm_res = requests.get(f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(base_anchor_city)}&countrycodes=us,ca,mx&format=json&limit=1", headers=headers).json()
 
         if osm_res:
             lat, lon = float(osm_res[0]["lat"]), float(osm_res[0]["lon"])
             try:
                 rev_res = requests.get(f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json", headers=headers).json()
                 address = rev_res.get('address', {})
-                location_name = f"{address.get('village', address.get('town', address.get('city', 'Local Area')))}, {input_state}"
+                resolved_state = address.get('state', input_state)
+                location_name = f"{address.get('village', address.get('town', address.get('city', 'Local Area')))}, {resolved_state}"
             except Exception:
                 location_name = base_anchor_city
             display_summary = f"🗺️ Target Water: **{active_water_body}** ({location_name})"
@@ -246,8 +272,14 @@ if active_water_body and active_water_body != "Current GPS Location":
 else:
     if not lat: lat, lon = 47.2529, -122.4443
 
-detected_state = "Oregon" if "oregon" in location_name.lower() or "or" in location_name.lower() or lat < 46.25 else "Washington"
-agency_name = "ODFW" if detected_state == "Oregon" else "WDFW"
+# Derive dynamic operational state variables for execution paths
+if "location_name" in locals() and location_name != "":
+    check_str = location_name.lower()
+else:
+    check_str = base_anchor_city.lower()
+
+detected_state = "Texas" if "texas" in check_str or "tx" in check_str else "Oregon" if "oregon" in check_str or "or" in check_str or (lat and lat < 46.25 and "washington" not in check_str) else "Washington" if "washington" in check_str or "wa" in check_str else input_state
+agency_name = "TPWD" if detected_state == "Texas" else "ODFW" if detected_state == "Oregon" else "WDFW" if detected_state == "Washington" else f"{detected_state} Conservation"
 
 # =====================================================================
 # 🚀 STEP 5: RUN COMPILATION ENGINE & RENDER DASHBOARD UI
@@ -302,12 +334,33 @@ if lat and lon:
             </div>
         """, unsafe_allow_html=True)
 
+        # =====================================================================
+        # 🗺️ DYNAMIC MULTI-STATE / GLOBAL GEOSPATIAL ROUTER INTERFACE
+        # =====================================================================
         st.markdown(f"### 🗺️ Navigation Hub: {active_water_body}")
         st.iframe(src=f"https://maps.google.com/maps?q={lat},{lon}&t=k&z=14&output=embed", height=400)
         
+        clean_lake_name = urllib.parse.quote(active_water_body.strip())
+        
+        if detected_state == "Washington":
+            state_gis_url = f"https://geo.wa.gov/datasets/waecy::lake-bathymetric-contour-lines/about"
+            gis_label = "🌲 Launch WA State Contour Library"
+        elif detected_state == "Oregon":
+            state_gis_url = f"https://atlas.geol.pdx.edu/"
+            gis_label = "🌲 Open Atlas of Oregon Lakes"
+        elif detected_state == "Texas":
+            state_gis_url = f"https://www.twdb.texas.gov/surfacewater/surveys/index.asp"
+            gis_label = "🤠 Launch Texas TWDB Hydro Survey"
+        else:
+            # 🌎 UNIVERSAL FALLBACK LINK ENGINE FOR ALL OTHER AMER TERRITORIES
+            state_gis_url = f"https://www.google.com/search?q={clean_lake_name}+{detected_state}+depth+contour+map&tbm=isch"
+            gis_label = "🔍 Scan Public Contour Archives"
+
         m_col1, m_col2 = st.columns(2)
-        with m_col1: st.link_button("🔍 Search Bathymetric Charts", f"https://www.google.com/search?q={urllib.parse.quote(active_water_body + ' depth chart')}&tbm=isch", use_container_width=True)
-        with m_col2: st.link_button("🚙 Launch Phone GPS Route", f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}&query={urllib.parse.quote(active_water_body + ' public boat launch')}", use_container_width=True, type="primary")
+        with m_col1: 
+            st.link_button(gis_label, state_gis_url, use_container_width=True)
+        with m_col2: 
+            st.link_button("🚙 Launch Phone GPS Route", f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}&query={urllib.parse.quote(active_water_body + ' public boat launch')}", use_container_width=True, type="primary")
 
         st.markdown("---")
         tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs(["🌦️ Atmosphere", "🌊 Water Gauges", "🎣 Tactical Strategy", "🚨 Game Rules"])
