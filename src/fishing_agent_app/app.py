@@ -207,14 +207,18 @@ else: # 🔍 Suggest Local Hotspots Mode
     selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options)
     active_water_body = selected_suggested
 
-# 🧭 FIXED GEOLOCATION SEARCH LOOP
+# 🧭 FIXED GEOLOCATION SEARCH LOOP WITH SMART LAKE ROUTING
 if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"]:
     lat, lon = None, None  
 
 if not lat and active_water_body and location_name:
     try:
         if routing_mode in ["🔍 Suggest Local Hotspots", "✍️ Enter a Specific Water Body By Name"] and "GPS Location" not in active_water_body:
-            search_query = f"{active_water_body}, {location_name}"
+            # Catch Kapowsin / Kapowisin variations and pin the exact lake asset
+            if re.search(r"kapow", active_water_body, re.IGNORECASE):
+                search_query = "Lake Kapowsin, Pierce County, Washington"
+            else:
+                search_query = f"{active_water_body}, {location_name}"
         else:
             search_query = location_name
 
