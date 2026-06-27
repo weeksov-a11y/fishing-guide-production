@@ -49,10 +49,13 @@ if "lon" not in st.session_state:
     st.session_state.lon = -122.4443
 if "location_name" not in st.session_state:
     st.session_state.location_name = "Tacoma, WA"
+if "active_water_body" not in st.session_state:
+    st.session_state.active_water_body = ""
 
 lat = st.session_state.lat
 lon = st.session_state.lon
 location_name = st.session_state.location_name
+active_water_body = st.session_state.active_water_body
 
 gemini_scout_model = LLM(
     model="groq/llama-3.1-8b-instant",
@@ -141,15 +144,7 @@ routing_mode = st.radio(
 
 water_context = ""
 display_summary = ""
-active_water_body = ""
 base_anchor_city = st.session_state.get("location_name", "Tacoma, WA")
-
-current_env = st.session_state.get("env_choice", "Freshwater")
-current_cat = st.session_state.get("fw_category", "🏡 Lakes")
-
-scout_dropdown_val = st.session_state.get(f"sb_hotspots_{routing_mode}_{current_env}_{current_cat}")
-if scout_dropdown_val and not scout_dropdown_val.startswith("⚡"):
-    active_water_body = scout_dropdown_val
 
 if routing_mode == "🛰️ Use My Live GPS Coordinates":
     st.markdown("### 🛰️ Mobile Satellite Link")
@@ -158,7 +153,7 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
     location_data = streamlit_geolocation()
     
     if location_data and location_data.get('latitude') is not None:
-        if not active_water_body:
+        if not active_water_body or active_water_body == "":
             st.session_state.lat = float(location_data['latitude'])
             st.session_state.lon = float(location_data['longitude'])
             lat = st.session_state.lat
@@ -298,7 +293,7 @@ default_species = species_options[0] if species_options else ""
 target_fish = st.pills("Choose your target profile:", options=species_options, default=default_species, label_visibility="collapsed")
 
 # =====================================================================
-# ⚙️ AUTOMATED RADAR SCOUT ENGINE WITH HARDCODED BIOLOGICAL OVERRIDES
+# 🔥 EXPLICIT INDEX LOCKING ENGINE (FOOLPROOF DROPDOWN FIX)
 # =====================================================================
 if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coordinates"]:
     scout_fingerprint = f"{routing_mode}_{env_choice}_{fw_category}_{target_fish}_{base_anchor_city}"
@@ -307,10 +302,12 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
         if "Channel Catfish" in target_fish and input_state == "Washington":
             st.session_state.scouted_lakes_dict[env_choice] = ["Green Lake (Seattle)", "Sprague Lake", "Swofford Pond"]
             st.session_state.last_scout_fingerprint = scout_fingerprint
+            st.session_state.active_water_body = "Green Lake (Seattle)" # Auto-lock first choice
             st.rerun()
         elif "Tiger Muskie" in target_fish and input_state == "Washington":
             st.session_state.scouted_lakes_dict[env_choice] = ["Mayfield Lake", "Merwin Lake", "Newman Lake"]
             st.session_state.last_scout_fingerprint = scout_fingerprint
+            st.session_state.active_water_body = "Mayfield Lake" # Auto-lock first choice
             st.rerun()
         else:
             with st.spinner(f"🤖 Auto-Scouting fresh local options near {base_anchor_city}..."):
@@ -322,6 +319,7 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
                     if len(cleaned_list) >= 1:
                         st.session_state.scouted_lakes_dict[env_choice] = cleaned_list[:3]
                         st.session_state.last_scout_fingerprint = scout_fingerprint
+                        st.session_state.active_water_body = cleaned_list[0] # Auto-lock first choice
                         st.rerun()
                 except Exception:
                     pass
@@ -333,16 +331,35 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
         if not dropdown_options:
             dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
 
+    # 🔥 INDEX LOCK: Find exactly where your active selection sits in the new list
+    saved_target = st.session_state.get("active_water_body", "")
+    try:
+        target_idx = dropdown_options.index(saved_target)
+    except ValueError:
+        target_idx = 0
+
+    # 🎯 DYNAMIC KEY: Makes Streamlit treat it as a brand new widget every time the species changes
+    dynamic_key = f"selector_{scout_fingerprint.replace(' ', '_')}"
+
     selected_suggested = st.selectbox(
         "🎯 Tap to select one of your local suggested hotspots:", 
         options=dropdown_options, 
-        key=f"sb_hotspots_{routing_mode}_{env_choice}_{fw_category}"
+        index=target_idx,  # Explicitly force the UI to match your saved selection
+        key=dynamic_key
     )
 
-    if "⚡" in selected_suggested:
-        active_water_body = ""
-    else:
+    if "⚡" not in selected_suggested:
+        st.session_state.active_water_body = selected_suggested
         active_water_body = selected_suggested
+    else:
+        active_water_body = ""
+
+else:
+    if "user_water" in locals() and user_water.strip():
+        active_water_body = user_water.strip()
+        st.session_state.active_water_body = active_water_body
+    else:
+        active_water_body = st.session_state.get("active_water_body", "Riffe Lake")
 
 # =====================================================================
 # 🧭 RESOLVE TARGET COORDINATES (GEOLOCATION INTERCEPT PROCESSORS)
@@ -372,6 +389,8 @@ if active_water_body and active_water_body != "Current GPS Location":
                 address = rev_res.get('address', {})
                 resolved_state = address.get('state', input_state)
                 city_name = address.get('village', address.get('town', address.get('city', '')))
+                
+                # JUNK TEXT BLOCKER: Never let "Local Area" bleed into the map
                 if not city_name or city_name.strip() == "":
                     st.session_state.location_name = f"{active_water_body}, {resolved_state}"
                 else:
