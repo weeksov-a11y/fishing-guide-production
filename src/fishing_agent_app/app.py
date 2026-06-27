@@ -207,7 +207,7 @@ with config_col2:
 
 st.markdown("---")
 
-# 🎣 EXPANDED DYNAMIC SPECIES INTAKE (COMPLETE PNW LEGAL CATALOG)
+# 🎣 DYNAMIC SPECIES INTAKE (SEGREGATED FOR HABITAT ACCURACY)
 st.markdown(f"### 🎣 4. Select Target Species ({agency_name} Legal Catalog)")
 
 if detected_state == "Washington":
@@ -219,17 +219,17 @@ if detected_state == "Washington":
                 "Winter Steelhead", "Coastal Cutthroat", "White Sturgeon"
             ]
             default_species = "Silver Salmon (Coho)"
-        else:
+        else: # 🏡 Lowland Lakes Only
             species_options = [
                 "Rainbow Trout", "Cutthroat Trout", "Brown Trout", "Brook Trout", 
                 "Kokanee", "Crappie", "Largemouth Bass", "Smallmouth Bass", 
                 "Yellow Perch", "Walleye", "Channel Catfish", "Bluegill/Sunfish", "Tiger Muskie"
             ]
             default_species = "Crappie"
-    else: # Saltwater WA
+    else: # ⚓ Saltwater WA
         species_options = ["Resident Coho Salmon", "Blackmouth (Chinook)", "Puget Sound Surfperch", "Flounder", "Spiny Dogfish", "Lingcod", "Cabezon", "Halibut"]
         default_species = "Resident Coho Salmon"
-else: # Oregon Jurisdiction
+else: # 🌲 Oregon Jurisdiction
     if env_choice == "Freshwater":
         if fw_category == "🏞️ Rivers":
             species_options = [
@@ -237,14 +237,14 @@ else: # Oregon Jurisdiction
                 "Winter Steelhead", "Summer Steelhead", "White Sturgeon", "American Shad"
             ]
             default_species = "Coho Salmon"
-        else:
+        else: # 🏡 Lowland Lakes Only
             species_options = [
                 "Rainbow Trout", "Brown Trout", "Brook Trout", "Lake Trout (Mackinaw)", 
                 "Kokanee", "Largemouth Bass", "Smallmouth Bass", "Crappie", 
                 "Yellow Perch", "Walleye", "Channel Catfish", "Bluegill"
             ]
             default_species = "Crappie"
-    else: # Saltwater OR
+    else: # ⚓ Saltwater OR
         species_options = ["Ocean Chinook", "Ocean Coho", "Rockfish (Black/Blue)", "Lingcod", "Pacific Halibut", "Surfperch", "Greenling"]
         default_species = "Ocean Coho"
 
