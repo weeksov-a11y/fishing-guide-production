@@ -293,62 +293,66 @@ default_species = species_options[0] if species_options else ""
 target_fish = st.pills("Choose your target profile:", options=species_options, default=default_species, label_visibility="collapsed")
 
 # =====================================================================
-# 🔥 EXPLICIT INDEX LOCKING ENGINE (FOOLPROOF DROPDOWN FIX)
+# ⚙️ AUTOMATED RADAR SCOUT ENGINE (EXPLICIT BUTTON CONTROL)
 # =====================================================================
 if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coordinates"]:
     scout_fingerprint = f"{routing_mode}_{env_choice}_{fw_category}_{target_fish}_{base_anchor_city}"
     
-    if st.session_state.get("last_scout_fingerprint") != scout_fingerprint and base_anchor_city != "":
-        if "Channel Catfish" in target_fish and input_state == "Washington":
-            st.session_state.scouted_lakes_dict[env_choice] = ["Green Lake (Seattle)", "Sprague Lake", "Swofford Pond"]
-            st.session_state.last_scout_fingerprint = scout_fingerprint
-            st.session_state.active_water_body = "Green Lake (Seattle)" # Auto-lock first choice
-            st.rerun()
-        elif "Tiger Muskie" in target_fish and input_state == "Washington":
-            st.session_state.scouted_lakes_dict[env_choice] = ["Mayfield Lake", "Merwin Lake", "Newman Lake"]
-            st.session_state.last_scout_fingerprint = scout_fingerprint
-            st.session_state.active_water_body = "Mayfield Lake" # Auto-lock first choice
-            st.rerun()
-        else:
-            with st.spinner(f"🤖 Auto-Scouting fresh local options near {base_anchor_city}..."):
-                prompt = f"Provide exactly 3 real, specific local named {env_choice} fishing spots, lakes, boat launches, or marine zones located within a scenic 50-100 mile driving radius of {base_anchor_city} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers."
-                try:
-                    scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
-                    raw_text = str(scout_res).strip()
-                    cleaned_list = [re.sub(r'^\d+[.)]\s*|^[*-]\s*', '', line).strip() for line in raw_text.split("\n") if line.strip()]
-                    if len(cleaned_list) >= 1:
-                        st.session_state.scouted_lakes_dict[env_choice] = cleaned_list[:3]
-                        st.session_state.last_scout_fingerprint = scout_fingerprint
-                        st.session_state.active_water_body = cleaned_list[0] # Auto-lock first choice
-                        st.rerun()
-                except Exception:
-                    pass
-
-    if scout_fingerprint != st.session_state.get("last_scout_fingerprint"):
-        dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
+    # 1. 🛡️ Determine the exact body of water to prevent AI mixing
+    if env_choice == "Freshwater":
+        target_body_type = "rivers" if "Rivers" in fw_category else "lakes"
     else:
-        dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
-        if not dropdown_options:
-            dropdown_options = [f"⚡ [Click to Scan Local Spots for {target_fish}]"]
+        target_body_type = "marine zones or bays"
 
-    # 🔥 INDEX LOCK: Find exactly where your active selection sits in the new list
-    saved_target = st.session_state.get("active_water_body", "")
-    try:
-        target_idx = dropdown_options.index(saved_target)
-    except ValueError:
-        target_idx = 0
+    needs_scout = st.session_state.get("last_scout_fingerprint") != scout_fingerprint
+    
+    # 2. 🛑 Place the expensive LLM call behind an explicit button to stop loop crashing
+    if needs_scout and base_anchor_city != "":
+        st.info(f"Press the button below to scan the region for {target_fish} hotspots.")
+        if st.button(f"🔍 Scout Local {target_body_type.title()} for {target_fish}", type="primary", use_container_width=True):
+            
+            if "Channel Catfish" in target_fish and input_state == "Washington" and target_body_type == "lakes":
+                st.session_state.scouted_lakes_dict[scout_fingerprint] = ["Green Lake (Seattle)", "Sprague Lake", "Swofford Pond"]
+                st.session_state.last_scout_fingerprint = scout_fingerprint
+                st.rerun()
+            elif "Tiger Muskie" in target_fish and input_state == "Washington" and target_body_type == "lakes":
+                st.session_state.scouted_lakes_dict[scout_fingerprint] = ["Mayfield Lake", "Merwin Lake", "Newman Lake"]
+                st.session_state.last_scout_fingerprint = scout_fingerprint
+                st.rerun()
+            else:
+                with st.spinner(f"🤖 Auto-Scouting fresh local {target_body_type} near {base_anchor_city}..."):
+                    # Strict negative prompting to enforce water types
+                    negative_prompt = "DO NOT INCLUDE RIVERS." if target_body_type == "lakes" else "DO NOT INCLUDE LAKES." if target_body_type == "rivers" else ""
+                    
+                    prompt = f"Provide exactly 3 real, specific local named {target_body_type} located within a scenic 50-100 mile driving radius of {base_anchor_city}, {input_state} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers. {negative_prompt}"
+                    
+                    try:
+                        scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
+                        raw_text = str(scout_res).strip()
+                        cleaned_list = [re.sub(r'^\d+[.)]\s*|^[*-]\s*', '', line).strip() for line in raw_text.split("\n") if line.strip()]
+                        if len(cleaned_list) >= 1:
+                            # Save to exact fingerprint so lakes and rivers never cross-contaminate
+                            st.session_state.scouted_lakes_dict[scout_fingerprint] = cleaned_list[:3]
+                            st.session_state.last_scout_fingerprint = scout_fingerprint
+                            st.session_state.active_water_body = cleaned_list[0]
+                            st.rerun()
+                    except Exception:
+                        st.error("Satellite uplink failed. Please try scouting again.")
 
-    # 🎯 DYNAMIC KEY: Makes Streamlit treat it as a brand new widget every time the species changes
+    # 3. 🎯 Load dropdown using isolated fingerprint tracking
+    dropdown_options = st.session_state.scouted_lakes_dict.get(scout_fingerprint, [])
+    if not dropdown_options:
+        dropdown_options = [f"⚡ [Awaiting Scout Command]"]
+
     dynamic_key = f"selector_{scout_fingerprint.replace(' ', '_')}"
 
     selected_suggested = st.selectbox(
         "🎯 Tap to select one of your local suggested hotspots:", 
         options=dropdown_options, 
-        index=target_idx,  # Explicitly force the UI to match your saved selection
         key=dynamic_key
     )
 
-    if "⚡" not in selected_suggested:
+    if selected_suggested and "⚡" not in selected_suggested:
         st.session_state.active_water_body = selected_suggested
         active_water_body = selected_suggested
     else:
