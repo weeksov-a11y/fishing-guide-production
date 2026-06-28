@@ -41,7 +41,7 @@ except ModuleNotFoundError:
         from crew import FishingAgentApp
 
 # =====================================================================
-# 🧠 MASTER GLOBAL SESSION STATE INITIALIZATION 
+# 🧠 MASTER GLOBAL SESSION STATE INITIALIZATION & CALLBACKS
 # =====================================================================
 if "lat" not in st.session_state:
     st.session_state.lat = 47.2529
@@ -51,11 +51,19 @@ if "location_name" not in st.session_state:
     st.session_state.location_name = "Tacoma, WA"
 if "active_water_body" not in st.session_state:
     st.session_state.active_water_body = ""
+if "current_map_label" not in st.session_state:
+    st.session_state.current_map_label = "Tacoma, WA"
 
 lat = st.session_state.lat
 lon = st.session_state.lon
 location_name = st.session_state.location_name
 active_water_body = st.session_state.active_water_body
+
+# 🔥 NATIVE CALLBACK: Locks the dropdown selection BEFORE the app reruns
+def sync_hotspot(selector_key):
+    val = st.session_state.get(selector_key)
+    if val and "⚡" not in val:
+        st.session_state.active_water_body = val
 
 gemini_scout_model = LLM(
     model="groq/llama-3.1-8b-instant",
@@ -139,7 +147,8 @@ st.subheader("📡 Step 1: Destination Routing Mode")
 routing_mode = st.radio(
     "How do you want to set your fishing location?",
     options=["🛰️ Use My Live GPS Coordinates", "📝 Enter a Specific Water Body By Name", "🔍 Suggest Local Hotspots"],
-    horizontal=True
+    horizontal=True,
+    key="routing_mode_radio"
 )
 
 water_context = ""
@@ -166,10 +175,10 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
                 city = address.get('city', address.get('town', address.get('village', 'Unknown Area')))
                 state = address.get('state', 'Washington')
                 st.session_state.location_name = f"{city}, {state}"
+                st.session_state.current_map_label = f"{city}, {state}"
                 location_name = st.session_state.location_name
             except Exception:
-                st.session_state.location_name = "Tacoma, WA"
-                location_name = st.session_state.location_name
+                pass
                 
             active_water_body = "Current GPS Location"
             water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f} near {location_name}."
@@ -186,21 +195,22 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
             st.session_state.lat = 47.2529
             st.session_state.lon = -122.4443
             st.session_state.location_name = "Tacoma, WA"
+            st.session_state.current_map_label = "Tacoma, WA"
         lat = st.session_state.lat
         lon = st.session_state.lon
         location_name = st.session_state.location_name
         base_anchor_city = location_name
 
 elif routing_mode == "📝 Enter a Specific Water Body By Name":
-    user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Puyallup River")
-    manual_city = st.text_input("📍 Your Base Camp / Closest City (Sets State Jurisdiction):", value="Tacoma, WA")
+    user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Puyallup River", key="manual_water_input")
+    manual_city = st.text_input("📍 Your Base Camp / Closest City (Sets State Jurisdiction):", value="Tacoma, WA", key="manual_city_input")
     location_name = manual_city
     base_anchor_city = manual_city
     if not active_water_body:
         active_water_body = user_water.strip()
 
 else: 
-    manual_city = st.text_input("📍 Search Anchor City (Finds spots within a 50-100 mile radius):", value="Tacoma, WA")
+    manual_city = st.text_input("📍 Search Anchor City (Finds spots within a 50-100 mile radius):", value="Tacoma, WA", key="suggest_city_input")
     location_name = manual_city
     base_anchor_city = manual_city
 
@@ -223,7 +233,7 @@ config_col1, config_col2 = st.columns(2)
 with config_col1:
     st.markdown("### 🌊 2. Environment")
     env_choice = st.segmented_control(
-        "Select your system framework:", options=["Freshwater", "Saltwater (Marine)"], default="Freshwater", label_visibility="collapsed"
+        "Select your system framework:", options=["Freshwater", "Saltwater (Marine)"], default="Freshwater", label_visibility="collapsed", key="env_choice_ctl"
     )
     st.session_state.env_choice = env_choice
 
@@ -231,7 +241,7 @@ with config_col2:
     st.markdown("### 🗺️ 3. System Type")
     if env_choice == "Freshwater":
         fw_category = st.segmented_control(
-            "Select water body type:", options=["🏞️ Rivers", "🏡 Lakes"], default="🏡 Lakes", label_visibility="collapsed"
+            "Select water body type:", options=["🏞️ Rivers", "🏡 Lakes"], default="🏡 Lakes", label_visibility="collapsed", key="fw_category_ctl"
         )
     else:
         st.markdown(f"<p style='color: #22c55e; font-size: 14px; margin-top: 8px;'>⚓ Marine Management Units Active</p>", unsafe_allow_html=True)
@@ -290,15 +300,14 @@ else:
         species_options = ["Coastal Gamefish", "Inshore Sea Trout", "Snook/Redfish", "Striper", "Flounder", "Rockfish/Cod", "Deep Sea Pelagic"]
 
 default_species = species_options[0] if species_options else ""
-target_fish = st.pills("Choose your target profile:", options=species_options, default=default_species, label_visibility="collapsed")
+target_fish = st.pills("Choose your target profile:", options=species_options, default=default_species, label_visibility="collapsed", key="fish_pill_input")
 
 # =====================================================================
-# ⚙️ AUTOMATED RADAR SCOUT ENGINE (EXPLICIT BUTTON CONTROL)
+# ⚙️ AUTOMATED RADAR SCOUT ENGINE (EXPLICIT BUTTON CONTROL & CALLBACK)
 # =====================================================================
 if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coordinates"]:
     scout_fingerprint = f"{routing_mode}_{env_choice}_{fw_category}_{target_fish}_{base_anchor_city}"
     
-    # 1. 🛡️ Determine the exact body of water to prevent AI mixing
     if env_choice == "Freshwater":
         target_body_type = "rivers" if "Rivers" in fw_category else "lakes"
     else:
@@ -306,32 +315,28 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
 
     needs_scout = st.session_state.get("last_scout_fingerprint") != scout_fingerprint
     
-    # 2. 🛑 Place the expensive LLM call behind an explicit button to stop loop crashing
     if needs_scout and base_anchor_city != "":
         st.info(f"Press the button below to scan the region for {target_fish} hotspots.")
         if st.button(f"🔍 Scout Local {target_body_type.title()} for {target_fish}", type="primary", use_container_width=True):
-            
             if "Channel Catfish" in target_fish and input_state == "Washington" and target_body_type == "lakes":
                 st.session_state.scouted_lakes_dict[scout_fingerprint] = ["Green Lake (Seattle)", "Sprague Lake", "Swofford Pond"]
                 st.session_state.last_scout_fingerprint = scout_fingerprint
+                st.session_state.active_water_body = "Green Lake (Seattle)"
                 st.rerun()
             elif "Tiger Muskie" in target_fish and input_state == "Washington" and target_body_type == "lakes":
                 st.session_state.scouted_lakes_dict[scout_fingerprint] = ["Mayfield Lake", "Merwin Lake", "Newman Lake"]
                 st.session_state.last_scout_fingerprint = scout_fingerprint
+                st.session_state.active_water_body = "Mayfield Lake"
                 st.rerun()
             else:
                 with st.spinner(f"🤖 Auto-Scouting fresh local {target_body_type} near {base_anchor_city}..."):
-                    # Strict negative prompting to enforce water types
                     negative_prompt = "DO NOT INCLUDE RIVERS." if target_body_type == "lakes" else "DO NOT INCLUDE LAKES." if target_body_type == "rivers" else ""
-                    
                     prompt = f"Provide exactly 3 real, specific local named {target_body_type} located within a scenic 50-100 mile driving radius of {base_anchor_city}, {input_state} that are highly-rated for catching {target_fish}. Output ONLY the 3 names separated by newlines, with no extra text, no markdown bullets, no dashes, and no numbers. {negative_prompt}"
-                    
                     try:
                         scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
                         raw_text = str(scout_res).strip()
                         cleaned_list = [re.sub(r'^\d+[.)]\s*|^[*-]\s*', '', line).strip() for line in raw_text.split("\n") if line.strip()]
                         if len(cleaned_list) >= 1:
-                            # Save to exact fingerprint so lakes and rivers never cross-contaminate
                             st.session_state.scouted_lakes_dict[scout_fingerprint] = cleaned_list[:3]
                             st.session_state.last_scout_fingerprint = scout_fingerprint
                             st.session_state.active_water_body = cleaned_list[0]
@@ -339,21 +344,22 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
                     except Exception:
                         st.error("Satellite uplink failed. Please try scouting again.")
 
-    # 3. 🎯 Load dropdown using isolated fingerprint tracking
     dropdown_options = st.session_state.scouted_lakes_dict.get(scout_fingerprint, [])
     if not dropdown_options:
         dropdown_options = [f"⚡ [Awaiting Scout Command]"]
 
     dynamic_key = f"selector_{scout_fingerprint.replace(' ', '_')}"
 
+    # 🔥 The Callback triggers here the absolute millisecond the dropdown is clicked
     selected_suggested = st.selectbox(
         "🎯 Tap to select one of your local suggested hotspots:", 
         options=dropdown_options, 
-        key=dynamic_key
+        key=dynamic_key,
+        on_change=sync_hotspot,
+        args=(dynamic_key,)
     )
 
     if selected_suggested and "⚡" not in selected_suggested:
-        st.session_state.active_water_body = selected_suggested
         active_water_body = selected_suggested
     else:
         active_water_body = ""
@@ -394,15 +400,19 @@ if active_water_body and active_water_body != "Current GPS Location":
                 resolved_state = address.get('state', input_state)
                 city_name = address.get('village', address.get('town', address.get('city', '')))
                 
-                # JUNK TEXT BLOCKER: Never let "Local Area" bleed into the map
+                # 🛡️ JUNK BLOCKER: Isolates the map label from poisoning your Search Anchor Fingerprint!
                 if not city_name or city_name.strip() == "":
-                    st.session_state.location_name = f"{active_water_body}, {resolved_state}"
+                    display_loc = f"{active_water_body}, {resolved_state}"
                 else:
-                    st.session_state.location_name = f"{city_name}, {resolved_state}"
+                    display_loc = f"{city_name}, {resolved_state}"
+                
+                if routing_mode == "🛰️ Use My Live GPS Coordinates":
+                    st.session_state.location_name = display_loc
+                st.session_state.current_map_label = display_loc
             except Exception:
-                st.session_state.location_name = f"{active_water_body}, {input_state}"
+                st.session_state.current_map_label = f"{active_water_body}, {input_state}"
             
-            display_summary = f"🗺️ Target Water: **{active_water_body}** ({st.session_state.location_name})"
+            display_summary = f"🗺️ Target Water: **{active_water_body}** ({st.session_state.get('current_map_label', location_name)})"
             water_context = f"the specific body of water named {active_water_body} in {input_state}."
     except Exception:
         pass
@@ -412,39 +422,32 @@ else:
         if osm_res:
             st.session_state.lat = float(osm_res[0]["lat"])
             st.session_state.lon = float(osm_res[0]["lon"])
-            st.session_state.location_name = base_anchor_city
+            st.session_state.current_map_label = base_anchor_city
 
 if active_water_body:
     if "wallenpaupack" in active_water_body.lower():
         st.session_state.lat, st.session_state.lon = 41.4201, -75.2333
-        st.session_state.location_name = "Pocono Mountains, PA"
+        st.session_state.current_map_label = "Pocono Mountains, PA"
     elif "green lake" in active_water_body.lower() and "seattle" in base_anchor_city.lower():
         st.session_state.lat, st.session_state.lon = 47.6797, -122.3256
-        st.session_state.location_name = "Seattle, WA"
+        st.session_state.current_map_label = "Seattle, WA"
     elif "elmo" in active_water_body.lower():
         st.session_state.lat, st.session_state.lon = 45.8410, -108.4794
-        st.session_state.location_name = "Billings/Great Falls Region, MT"
+        st.session_state.current_map_label = "Billings/Great Falls Region, MT"
 
 lat = st.session_state.lat
 lon = st.session_state.lon
-location_name = st.session_state.location_name
-check_str = location_name.lower() if ("location_name" in locals() and location_name != "") else base_anchor_city.lower()
 
-if "montana" in check_str or "mt" in check_str:
+if "montana" in input_state.lower() or "mt" in input_state.lower():
     detected_state = "Montana"
-    agency_name = "FWP"
-elif "texas" in check_str or "tx" in check_str:
+elif "texas" in input_state.lower() or "tx" in input_state.lower():
     detected_state = "Texas"
-    agency_name = "TPWD"
-elif "oregon" in check_str or "or" in check_str:
+elif "oregon" in input_state.lower() or "or" in input_state.lower():
     detected_state = "Oregon"
-    agency_name = "ODFW"
-elif "pennsylvania" in check_str or "pa" in check_str:
+elif "pennsylvania" in input_state.lower() or "pa" in input_state.lower():
     detected_state = "Pennsylvania"
-    agency_name = "PFBC"
 else:
     detected_state = "Washington"
-    agency_name = "WDFW"
 
 # =====================================================================
 # 🚀 STEP 5: RUN COMPILATION ENGINE & RENDER DASHBOARD UI
@@ -592,10 +595,13 @@ if lat and lon:
 
         st.markdown("---")
         
-        clean_lake_name = urllib.parse.quote(active_water_body.strip())
+        # 🔥 WDFW DIRECT SEARCH URL INJECTION
+        clean_search_name = re.sub(r"\(.*?\)", "", active_water_body).strip()
+        url_safe_name = urllib.parse.quote(clean_search_name)
+        
         if detected_state == "Washington":
-            state_gis_url = f"https://wdfw.wa.gov/fishing/locations/lowland-lakes"
-            gis_label = "🌲 Launch WDFW Hydro Graphics Portal"
+            state_gis_url = f"https://wdfw.wa.gov/fishing/locations/lowland-lakes?name={url_safe_name}"
+            gis_label = f"🌲 Search WDFW for {clean_search_name}"
         elif detected_state == "Oregon":
             state_gis_url = f"https://oregonexplorer.info/topics/Water"
             gis_label = "🌲 Open Oregon Explorer Portal"
@@ -603,7 +609,7 @@ if lat and lon:
             state_gis_url = f"https://tpwd.texas.gov/fishboat/fish/recreational/lakes/"
             gis_label = "🤠 Open Texas Volumetric Lake Surveys"
         else:
-            state_gis_url = f"https://www.google.com/search?q={clean_lake_name}+{detected_state}+depth+contour+map&tbm=isch"
+            state_gis_url = f"https://www.google.com/search?q={url_safe_name}+{detected_state}+depth+contour+map&tbm=isch"
             gis_label = "🔍 Scan Public Contour Archives"
 
         b_col1, b_col2 = st.columns(2)
@@ -616,7 +622,7 @@ if lat and lon:
         tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs(["🌦️ Atmosphere", "🌊 Water Gauges", "🎣 Tactical Strategy", "🚨 Game Rules"])
 
         with tab_cond:
-            st.caption(f"🗺️ Position Fixed: {lat:.4f}, {lon:.4f} | Region Context: {location_name}")
+            st.caption(f"🗺️ Position Fixed: {lat:.4f}, {lon:.4f} | Region Context: {st.session_state.get('current_map_label', 'Unknown')}")
             w_col1, w_col2, w_col3, w_col4 = st.columns(4)
             w_col1.metric("🌡️ Water Temp", f"{estimated_water_temp:.1f}°F")
             w_col2.metric("🌤️ Air Temp", f"{current_air_temp:.1f}°F")
