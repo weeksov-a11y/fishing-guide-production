@@ -1,5 +1,7 @@
-folium
-streamlit-folium
+streamlit
+crewai>=0.51.0
 streamlit-geolocation
+streamlit-folium
+folium
 requests
 pandas
