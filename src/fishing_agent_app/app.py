@@ -33,7 +33,18 @@ from crewai import LLM
 
 # Flat fallback logic to clear out any resolution or syntax crashes
 try:
-    from fishing_agent_app.crew import FishingAgentApp
+    # =====================================================================
+# 📂 ADVANCED DYNAMIC PACKAGE RESOLUTION RIG
+# =====================================================================
+# This forces Python to check the local folder first, fixing the import error
+try:
+    from crew import FishingAgentApp
+except ModuleNotFoundError:
+    try:
+        from fishing_agent_app.crew import FishingAgentApp
+    except ModuleNotFoundError:
+        from src.fishing_agent_app.crew import FishingAgentApp
+
 except ModuleNotFoundError:
     try:
         from src.fishing_agent_app.crew import FishingAgentApp
