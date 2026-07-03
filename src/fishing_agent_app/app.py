@@ -337,11 +337,33 @@ st.subheader("⚡ Step 5: Run Analysis")
 execute_crew = st.button("🚀 Generate Tactical Strategy Plan", type="primary", use_container_width=True)
 
 if lat and lon:
-    try:
+try:
         weather = fetch_cached_weather(lat, lon)
-        current = weather['current']
         
-        diff = current['surface_pressure'] - weather['hourly']['surface_pressure'][-3]
+        # 🛡️ TELEMETRY JUNK SHIELD: Fallback matrix if the open-meteo API fails or throttles
+        if not weather or 'current' not in weather:
+            current = {
+                'temperature_2m': 68.0, 
+                'cloud_cover': 40, 
+                'surface_pressure': 1013.25, 
+                'wind_speed_10m': 6.0
+            }
+            trend = "Stable"
+            cloud_word = "Partially Cloudy"
+            recent_rain = 0.0
+            clarity_estimate = "Clear Water Visibility"
+            estimated_water_temp = 64.0
+            current_air_temp = 68.0
+        else:
+            current = weather['current']
+            diff = current['surface_pressure'] - weather['hourly']['surface_pressure'][-3]
+            trend = "Rising rapidly" if diff > 0.05 else "Rising slowly" if diff > 0.01 else "Falling rapidly" if diff < -0.05 else "Falling slowly" if diff < -0.01 else "Stable"
+            cloud_word = "Clear/Sunny" if current['cloud_cover'] < 20 else "Partially Cloudy" if current['cloud_cover'] < 60 else "Overcast"
+            
+            recent_rain = sum(weather['hourly'].get('precipitation', [0.0])[-12:])
+            clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility"
+            estimated_water_temp = (0.7 * (sum(weather['hourly']['temperature_2m'][:72]) / 72)) + (0.3 * current['temperature_2m'])
+            current_air_temp = current['temperature_2m']
         trend = "Rising rapidly" if diff > 0.05 else "Rising slowly" if diff > 0.01 else "Falling rapidly" if diff < -0.05 else "Falling slowly" if diff < -0.01 else "Stable"
         cloud_word = "Clear/Sunny" if current['cloud_cover'] < 20 else "Partially Cloudy" if current['cloud_cover'] < 60 else "Overcast"
         
