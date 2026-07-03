@@ -509,37 +509,37 @@ if lat and lon:
 
         st.markdown("---")
         
-   # =====================================================================
-        # 🗺️ DYNAMIC NATIONWIDE HYDRO GRAPHICS LINK GENERATOR (PATH 2)
+# =====================================================================
+        # 🗺️ DYNAMIC NATIONWIDE HYDRO GRAPHICS LINK GENERATOR (PATH 2 - PREMIUM)
         # =====================================================================
         b_col1, b_col2 = st.columns(2)
         with b_col1: 
-            # Clean up the lake string for clean search query assembly
+            # Clean up the name string for the URL title query parameters
             clean_lake_name = active_water_body.replace("Lake", "").strip()
-            
-            # Combine the water body and state into a high-intent search query
-            # Adding "depth contour map" forces Google Images to filter out standard road maps
-            search_query = f"{clean_lake_name} {detected_state} depth contour map"
-            url_encoded_query = urllib.parse.quote(search_query)
+            url_encoded_title = urllib.parse.quote(f"{clean_lake_name} Fishing Chart")
             
             if detected_state == "Washington" and env_choice == "Freshwater":
-                # Keep the premium calculated ArcGIS box link for your home turf
+                # Keep your precision local ArcGIS routing for Washington home waters
                 lon_buffer = 0.015  
                 lat_buffer = 0.012  
-                
                 state_gis_url = (
                     f"https://wdfw.maps.arcgis.com/apps/mapviewer/index.html?"
                     f"webmap=fb6754c02ad444a6a8ef7a4d5d1c5fe5&"
                     f"extent={lon-lon_buffer:.6f},{lat-lat_buffer:.6f},{lon+lon_buffer:.6f},{lat+lat_buffer:.6f}"
                 )
-                gis_label = f"🗺️ Launch WDFW Interactive Depth Map"
+                gis_label = f"🗺️ Open WDFW Interactive Depth Map"
             else:
-                # 🚀 AUTOMATED NATIONWIDE NET: Drops users straight into filtered Google Images
-                # &tbm=isch toggles Google's "Image Search" tab automatically
-                state_gis_url = f"https://www.google.com/search?q={url_encoded_query}&tbm=isch"
-                gis_label = f"🔍 Open {clean_lake_name} Depth Contour Charts"
+                # 🚀 UNIVERSAL HYDRO ROUTER: Computes and passes exact lat/lon vectors to i-Boating
+                # Drops them perfectly centered at a crisp 13.5 zoom level with satellite background layers
+                state_gis_url = (
+                    f"https://fishing-app.gpsnauticalcharts.com/i-boating-fishing-web-app/"
+                    f"fishing-marine-charts-navigation.html?title={url_encoded_title}&"
+                    f"background=satellite&bmi=3#13.5/{lat:.4f}/{lon:.4f}"
+                )
+                gis_label = f"🌊 Open {clean_lake_name} HD Depth Chart"
                 
             st.link_button(gis_label, state_gis_url, use_container_width=True, type="primary")
+            
         st.markdown("---")
         tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs(["🌦️ Atmosphere", "🌊 Water Gauges", "🎣 Tactical Strategy", "🚨 Game Rules"])
 
