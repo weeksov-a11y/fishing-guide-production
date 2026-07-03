@@ -364,13 +364,6 @@ if lat and lon:
             clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility"
             estimated_water_temp = (0.7 * (sum(weather['hourly']['temperature_2m'][:72]) / 72)) + (0.3 * current['temperature_2m'])
             current_air_temp = current['temperature_2m']
-        trend = "Rising rapidly" if diff > 0.05 else "Rising slowly" if diff > 0.01 else "Falling rapidly" if diff < -0.05 else "Falling slowly" if diff < -0.01 else "Stable"
-        cloud_word = "Clear/Sunny" if current['cloud_cover'] < 20 else "Partially Cloudy" if current['cloud_cover'] < 60 else "Overcast"
-        
-        recent_rain = sum(weather['hourly'].get('precipitation', [0.0])[-12:])
-        clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility"
-        estimated_water_temp = (0.7 * (sum(weather['hourly']['temperature_2m'][:72]) / 72)) + (0.3 * current['temperature_2m'])
-        current_air_temp = current['temperature_2m']
 
         live_gauge_data = "Station data unavailable for static land locations."
         if env_choice == "Freshwater":
@@ -407,7 +400,7 @@ if lat and lon:
             </div>
         """, unsafe_allow_html=True)
 
-# =====================================================================
+        # =====================================================================
         # 🗺️ GRAPHICAL GRID & MULTILAYER ENVIRONMENTAL VISIBILITY ENGINE
         # =====================================================================
         m_col1, m_col2 = st.columns([2, 1])
@@ -477,6 +470,7 @@ if lat and lon:
                 key=f"structural_grid_{lat}_{lon}",
                 returned_objects=["last_clicked"]
             )
+            
         # =====================================================================
         # 📘 NEW FEATURE: DYNAMIC STATE REGULATION COMPLIANCE PORTAL 
         # =====================================================================
@@ -515,7 +509,7 @@ if lat and lon:
 
         st.markdown("---")
         
-       # =====================================================================
+        # =====================================================================
         # 🗺️ DYNAMIC EXTERNAL HYDRO GRAPHICS LINK GENERATOR
         # =====================================================================
         b_col1, b_col2 = st.columns(2)
