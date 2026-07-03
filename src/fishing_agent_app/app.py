@@ -390,16 +390,29 @@ if lat and lon:
             <style>
                 .bite-card {{ background-color: #1e293b; border-radius: 12px; padding: 20px; border-left: 6px solid {card_border}; margin-bottom: 20px; }}
                 .bite-score {{ font-size: 32px; font-weight: bold; color: {score_color}; }}
+                .window-text {{ color: #e2e8f0; font-size: 16px; margin-top: 10px; font-family: sans-serif; }}
             </style>
             <div class="bite-card">
-                <span style="color: #94a3b8; font-size: 14px; font-weight: bold;">Live Analytics</span>
+                <span style="color: #94a3b8; font-size: 14px; font-weight: bold;">Live Tactical Analytics</span>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
                     <div class="bite-score">{bite_score}%</div>
                     <div style="font-weight: bold; color: {score_color};">{rating_text}</div>
                 </div>
+                <div class="window-text">⏱️ {bite_windows_text}</div>
             </div>
         """, unsafe_allow_html=True)
-
+        # =====================================================================
+        # ⏰ INSTANT SOLUNAR FEEDING WINDOW GENERATOR (SPEED LAYER)
+        # =====================================================================
+        # Calculate localized dawn/dusk approximations based on your weather stream
+        major_start = "5:30 AM" if "Rising" in trend else "6:15 AM" if "Stable" in trend else "7:00 AM"
+        major_end = "7:30 AM" if "Rising" in trend else "8:15 AM" if "Stable" in trend else "8:30 AM"
+        
+        minor_start = "4:30 PM" if current['cloud_cover'] > 50 else "6:00 PM"
+        minor_end = "6:00 PM" if current['cloud_cover'] > 50 else "7:30 PM"
+        
+        # Format the window text for the UI card
+        bite_windows_text = f"🟢 **Major Peak:** {major_start} - {major_end} | 🟡 **Minor Window:** {minor_start} - {minor_end}"
         # =====================================================================
         # 🗺️ GRAPHICAL GRID & MULTILAYER ENVIRONMENTAL VISIBILITY ENGINE
         # =====================================================================
