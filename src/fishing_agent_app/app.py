@@ -510,35 +510,24 @@ if lat and lon:
         st.markdown("---")
         
 # =====================================================================
-        # 🗺️ DYNAMIC NATIONWIDE HYDRO GRAPHICS LINK GENERATOR (PATH 2 - PREMIUM)
+        # 🗺️ DYNAMIC UNIVERSAL HYDRO GRAPHICS LINK GENERATOR (NATIONWIDE i-BOATING)
         # =====================================================================
         b_col1, b_col2 = st.columns(2)
         with b_col1: 
-            # Clean up the name string for the URL title query parameters
+            # Clean up the name string for the URL header
             clean_lake_name = active_water_body.replace("Lake", "").strip()
             url_encoded_title = urllib.parse.quote(f"{clean_lake_name} Fishing Chart")
             
-            if detected_state == "Washington" and env_choice == "Freshwater":
-                # Keep your precision local ArcGIS routing for Washington home waters
-                lon_buffer = 0.015  
-                lat_buffer = 0.012  
-                state_gis_url = (
-                    f"https://wdfw.maps.arcgis.com/apps/mapviewer/index.html?"
-                    f"webmap=fb6754c02ad444a6a8ef7a4d5d1c5fe5&"
-                    f"extent={lon-lon_buffer:.6f},{lat-lat_buffer:.6f},{lon+lon_buffer:.6f},{lat+lat_buffer:.6f}"
-                )
-                gis_label = f"🗺️ Open WDFW Interactive Depth Map"
-            else:
-                # 🚀 UNIVERSAL HYDRO ROUTER: Computes and passes exact lat/lon vectors to i-Boating
-                # Drops them perfectly centered at a crisp 13.5 zoom level with satellite background layers
-                state_gis_url = (
-                    f"https://fishing-app.gpsnauticalcharts.com/i-boating-fishing-web-app/"
-                    f"fishing-marine-charts-navigation.html?title={url_encoded_title}&"
-                    f"background=satellite&bmi=3#13.5/{lat:.4f}/{lon:.4f}"
-                )
-                gis_label = f"🌊 Open {clean_lake_name} HD Depth Chart"
-                
-            st.link_button(gis_label, state_gis_url, use_container_width=True, type="primary")
+            # 🚀 THE UNIVERSAL ENGINE: Passes your active lat/lon math directly to i-Boating.
+            # This works flawlessly for EVERY lake in the USA out of the box.
+            universal_chart_url = (
+                f"https://fishing-app.gpsnauticalcharts.com/i-boating-fishing-web-app/"
+                f"fishing-marine-charts-navigation.html?title={url_encoded_title}&"
+                f"background=satellite&bmi=3#13.5/{lat:.4f}/{lon:.4f}"
+            )
+            
+            gis_label = f"🌊 Open {clean_lake_name} HD Depth Chart"
+            st.link_button(gis_label, universal_chart_url, use_container_width=True, type="primary")
             
         st.markdown("---")
         tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs(["🌦️ Atmosphere", "🌊 Water Gauges", "🎣 Tactical Strategy", "🚨 Game Rules"])
