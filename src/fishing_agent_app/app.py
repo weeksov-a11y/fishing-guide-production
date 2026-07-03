@@ -337,7 +337,7 @@ st.subheader("⚡ Step 5: Run Analysis")
 execute_crew = st.button("🚀 Generate Tactical Strategy Plan", type="primary", use_container_width=True)
 
 if lat and lon:
-try:
+    try:
         weather = fetch_cached_weather(lat, lon)
         
         # 🛡️ TELEMETRY JUNK SHIELD: Fallback matrix if the open-meteo API fails or throttles
