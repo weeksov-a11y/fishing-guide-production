@@ -509,23 +509,36 @@ if lat and lon:
 
         st.markdown("---")
         
-        # =====================================================================
+    # =====================================================================
         # 🗺️ DYNAMIC EXTERNAL HYDRO GRAPHICS LINK GENERATOR
         # =====================================================================
         b_col1, b_col2 = st.columns(2)
         with b_col1: 
-            # Clean up the lake name for standard web search
             clean_lake_name = active_water_body.replace("Lake", "").strip()
             url_encoded_name = urllib.parse.quote(clean_lake_name)
             
-            # Format name for direct WDFW PDF server matching (lowercase, no spaces)
+            # Format name for direct WDFW PDF server fallback matching
             pdf_filename = clean_lake_name.lower().replace(" ", "")
             
-            # Route users directly to authoritative state files or search archives
             if detected_state == "Washington" and env_choice == "Freshwater":
-                # Direct link straight to the official WDFW bathymetric depth chart PDF
-                state_gis_url = f"https://wdfw.wa.gov/sites/default/files/fishing/bathymetry/{pdf_filename}.pdf"
-                gis_label = f"📋 Open Official {clean_lake_name} Depth Chart (PDF)"
+                # 📡 GIS GEOMETRY ENVELOPE GENERATOR
+                # Computes a roughly ~2-mile bounding box buffer from the focused target point
+                lon_buffer = 0.015  # Left/Right span adjustment
+                lat_buffer = 0.012  # Up/Down span adjustment
+                
+                min_lon = lon - lon_buffer
+                min_lat = lat - lat_buffer
+                max_lon = lon + lon_buffer
+                max_lat = lat + lat_buffer
+                
+                # Compiles the direct link straight into the live WDFW ArcGIS Depth Chart viewer
+                state_gis_url = (
+                    f"https://wdfw.maps.arcgis.com/apps/mapviewer/index.html?"
+                    f"webmap=fb6754c02ad444a6a8ef7a4d5d1c5fe5&"
+                    f"extent={min_lon:.6f},{min_lat:.6f},{max_lon:.6f},{max_lat:.6f}"
+                )
+                gis_label = f"🗺️ Launch WDFW Interactive Depth Map"
+                
             elif detected_state == "Washington":
                 state_gis_url = f"https://wdfw.wa.gov/fishing/locations/lowland-lakes?name={url_encoded_name}"
                 gis_label = f"🗺️ Launch WDFW Location Portal"
