@@ -110,7 +110,7 @@ STATE_DICTIONARY = {
 # =====================================================================
 # 🛰️ STEP 1: LOCATION-FIRST ROUTING MODULE (THE ANCHOR)
 # =====================================================================
-st.subheader("📡 Step 1: Destination Routing Mode")
+st.markdown("### 📡 Step 1: Destination Routing Mode")
 routing_mode = st.radio(
     "How do you want to set your fishing location?",
     options=["🛰️ Use My Live GPS Coordinates", "📝 Enter a Specific Water Body By Name", "🔍 Suggest Local Hotspots"],
@@ -386,6 +386,21 @@ if lat and lon:
         bite_score = max(10, min(100, 50 + (20 if "Rising" in trend else 10 if "Stable" in trend else -15) + (15 if "Cloudy" in cloud_word or "Overcast" in cloud_word else 0) + (15 if current['wind_speed_10m'] < 10 else -20 if current['wind_speed_10m'] > 18 else 0)))
         card_border, score_color, rating_text = ("#22c55e", "#22c55e", "🏆 EXCELLENT CONDITIONS") if bite_score >= 75 else ("#eab308", "#eab308", "🟡 FAIR CONDITIONS") if bite_score >= 45 else ("#ef4444", "#ef4444", "🚨 TOUGH BITE WINDOW")
 
+        # =====================================================================
+        # ⏰ INSTANT SOLUNAR FEEDING WINDOW GENERATOR (SPEED LAYER)
+        # =====================================================================
+        # Calculate localized dawn/dusk approximations based on weather stream vectors
+        major_start = "5:30 AM" if "Rising" in trend else "6:15 AM" if "Stable" in trend else "7:00 AM"
+        major_end = "7:30 AM" if "Rising" in trend else "8:15 AM" if "Stable" in trend else "8:30 AM"
+        
+        minor_start = "4:30 PM" if current['cloud_cover'] > 50 else "6:00 PM"
+        minor_end = "6:00 PM" if current['cloud_cover'] > 50 else "7:30 PM"
+        
+        bite_windows_text = f"🟢 **Major Peak:** {major_start} - {major_end} | 🟡 **Minor Window:** {minor_start} - {minor_end}"
+
+        # =====================================================================
+        # 📊 LIVE TACTICAL ANALYTICS DASHBOARD CARD
+        # =====================================================================
         st.markdown(f"""
             <style>
                 .bite-card {{ background-color: #1e293b; border-radius: 12px; padding: 20px; border-left: 6px solid {card_border}; margin-bottom: 20px; }}
@@ -401,18 +416,7 @@ if lat and lon:
                 <div class="window-text">⏱️ {bite_windows_text}</div>
             </div>
         """, unsafe_allow_html=True)
-        # =====================================================================
-        # ⏰ INSTANT SOLUNAR FEEDING WINDOW GENERATOR (SPEED LAYER)
-        # =====================================================================
-        # Calculate localized dawn/dusk approximations based on your weather stream
-        major_start = "5:30 AM" if "Rising" in trend else "6:15 AM" if "Stable" in trend else "7:00 AM"
-        major_end = "7:30 AM" if "Rising" in trend else "8:15 AM" if "Stable" in trend else "8:30 AM"
-        
-        minor_start = "4:30 PM" if current['cloud_cover'] > 50 else "6:00 PM"
-        minor_end = "6:00 PM" if current['cloud_cover'] > 50 else "7:30 PM"
-        
-        # Format the window text for the UI card
-        bite_windows_text = f"🟢 **Major Peak:** {major_start} - {major_end} | 🟡 **Minor Window:** {minor_start} - {minor_end}"
+
         # =====================================================================
         # 🗺️ GRAPHICAL GRID & MULTILAYER ENVIRONMENTAL VISIBILITY ENGINE
         # =====================================================================
@@ -522,7 +526,7 @@ if lat and lon:
 
         st.markdown("---")
         
-# =====================================================================
+        # =====================================================================
         # 🗺️ DYNAMIC UNIVERSAL HYDRO GRAPHICS LINK GENERATOR (NATIONWIDE i-BOATING)
         # =====================================================================
         b_col1, b_col2 = st.columns(2)
@@ -532,7 +536,6 @@ if lat and lon:
             url_encoded_title = urllib.parse.quote(f"{clean_lake_name} Fishing Chart")
             
             # 🚀 THE UNIVERSAL ENGINE: Passes your active lat/lon math directly to i-Boating.
-            # This works flawlessly for EVERY lake in the USA out of the box.
             universal_chart_url = (
                 f"https://fishing-app.gpsnauticalcharts.com/i-boating-fishing-web-app/"
                 f"fishing-marine-charts-navigation.html?title={url_encoded_title}&"
