@@ -385,7 +385,7 @@ if lat and lon:
             </div>
         """, unsafe_allow_html=True)
 
-    # =====================================================================
+        # =====================================================================
         # 🗺️ GRAPHICAL GRID & TOPOGRAPHIC DEPTH CONTOUR ENGINE
         # =====================================================================
         m_col1, m_col2 = st.columns([2, 1])
@@ -493,13 +493,29 @@ if lat and lon:
 
         st.markdown("---")
         
-        # Dynamic search actions sitting under the portal frame
+       # =====================================================================
+        # 🗺️ DYNAMIC EXTERNAL HYDRO GRAPHICS LINK GENERATOR
+        # =====================================================================
         b_col1, b_col2 = st.columns(2)
         with b_col1: 
-            clean_lake_name = urllib.parse.quote(active_water_body.strip())
-            st.link_button("🔍 Search Bathymetric Charts", f"https://www.google.com/search?q={clean_lake_name}+{detected_state}+depth+contour+map&tbm=isch", use_container_width=True)
-        with b_col2: 
-            st.link_button("🚙 Launch Phone GPS Route", f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}&query={urllib.parse.quote(active_water_body + ' public boat launch')}", use_container_width=True, type="primary")
+            clean_lake_name = urllib.parse.quote(active_water_body.replace("Lake", "").strip())
+            
+            # Route users to the authoritative state-managed interactive contour tools
+            if detected_state == "Washington":
+                # Drops them straight into the WDFW Wilderness & Lowland Lake Depth Systems
+                state_gis_url = f"https://wdfw.wa.gov/fishing/locations/lowland-lakes?name={clean_lake_name}"
+                gis_label = f"🗺️ Launch WDFW Depth Map Portal"
+            elif detected_state == "Oregon":
+                state_gis_url = "https://oregonexplorer.info/topics/Water"
+                gis_label = "🗺️ Open Oregon Explorer GIS Engine"
+            elif detected_state == "Texas":
+                state_gis_url = "https://tpwd.texas.gov/fishboat/fish/recreational/lakes/"
+                gis_label = "🗺️ Open TPWD Volumetric Surveys"
+            else:
+                state_gis_url = f"https://www.google.com/search?q={clean_lake_name}+{detected_state}+depth+contour+map&tbm=isch"
+                gis_label = "🔍 Scan Public Contour Archives"
+                
+            st.link_button(gis_label, state_gis_url, use_container_width=True, type="primary")
 
         st.markdown("---")
         tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs(["🌦️ Atmosphere", "🌊 Water Gauges", "🎣 Tactical Strategy", "🚨 Game Rules"])
