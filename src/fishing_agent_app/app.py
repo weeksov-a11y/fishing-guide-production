@@ -432,13 +432,13 @@ if lat and lon:
 
             m.add_child(folium.LatLngPopup())
             
-            # 🔒 PERFORMANCE LOCK: Tell Streamlit to ONLY re-run when a user clicks a waypoint.
+          # 🔒 PERFORMANCE LOCK: Tell Streamlit to ONLY re-run when a user clicks a waypoint.
             # This ignores panning/zooming, eliminating the loading lag.
             map_data = st_folium(
                 m, 
                 width=750, 
                 height=450, 
-                key=f"noaa_grid_{st.session_state.lat}_{st.session_state.lon}",
+                key=f"noaa_grid_{lat}_{lon}",
                 returned_objects=["last_clicked"]
             )
         st.markdown("---")
