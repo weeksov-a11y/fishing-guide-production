@@ -385,36 +385,50 @@ if lat and lon:
             </div>
         """, unsafe_allow_html=True)
 
-        # =====================================================================
-        # 🗺️ GRAPHICAL GRID & NOAA AUTOMATED COMPONENT FREEZINGCORE
+    # =====================================================================
+        # 🗺️ GRAPHICAL GRID & TOPOGRAPHIC DEPTH CONTOUR ENGINE
         # =====================================================================
         m_col1, m_col2 = st.columns([2, 1])
         
         with m_col1:
-            st.markdown(f"### 🛰️ Interactive NOAA Chart Grid: {active_water_body}")
+            st.markdown(f"### 🛰️ Dynamic Topographic Survey Grid: {active_water_body}")
             
             if "map_view" not in st.session_state or st.session_state.get("last_water_body") != active_water_body:
-                st.session_state.map_view = {"center": [lat, lon], "zoom": 12}
+                st.session_state.map_view = {"center": [lat, lon], "zoom": 14} # Zoomed in closer to see drop-offs clearly
                 st.session_state.last_water_body = active_water_body
 
-            # Initialize lightweight basemap
+            # 🚀 SMOOTH PERFORMANCE BASE: Renders a crisp background instantly
             m = folium.Map(
                 location=st.session_state.map_view["center"], 
                 zoom_start=st.session_state.map_view["zoom"],
-                tiles="OpenStreetMap"
+                tiles="CartoDB positron" # Ultra-clean light gray canvas so contour lines jump out visually
             )
 
-            # 🌊 STREAMING CORES: Injects NOAA's Free High-Resolution Bathymetric Contours Layer
-            folium.WmsTileLayer(
-                url="https://coast.noaa.gov/arcgis/services/OceanReports/BathymetricContours/MapServer/WMSServer",
-                layers="0",
-                fmt="image/png",
-                transparent=True,
-                name="NOAA Depth Contours",
-                attr="NOAA National Ocean Service",
-                overlay=True,
-                control=True
-            ).add_to(m)
+            # 🪝 Washington Freshwater Lake Depth Contour Layer Link
+            if detected_state == "Washington" and env_choice == "Freshwater":
+                folium.WmsTileLayer(
+                    url="https://gis.ecology.wa.gov/arcgis/services/SEA/LakeBathymetry/MapServer/WMSServer",
+                    layers="0",
+                    fmt="image/png",
+                    transparent=True,
+                    name="WDFW Depth Contours",
+                    attr="WA Dept of Ecology & WDFW",
+                    overlay=True,
+                    control=True
+                ).add_to(m)
+                
+            # ⚓ Saltwater Coastal Navigation Chart Layer Link
+            elif env_choice == "Saltwater (Marine)":
+                folium.WmsTileLayer(
+                    url="https://coast.noaa.gov/arcgis/services/OceanReports/BathymetricContours/MapServer/WMSServer",
+                    layers="0",
+                    fmt="image/png",
+                    transparent=True,
+                    name="NOAA Marine Bathymetry",
+                    attr="NOAA National Ocean Service",
+                    overlay=True,
+                    control=True
+                ).add_to(m)
 
             # Render existing user catches from local SQLite DB
             try:
@@ -432,16 +446,14 @@ if lat and lon:
 
             m.add_child(folium.LatLngPopup())
             
-          # 🔒 PERFORMANCE LOCK: Tell Streamlit to ONLY re-run when a user clicks a waypoint.
-            # This ignores panning/zooming, eliminating the loading lag.
+            # 🔒 ANTI-LAG PERFORMANCE GUARD: Freezes app cycle unless waypoint dropped
             map_data = st_folium(
                 m, 
                 width=750, 
                 height=450, 
-                key=f"noaa_grid_{lat}_{lon}",
+                key=f"depth_grid_{lat}_{lon}",
                 returned_objects=["last_clicked"]
             )
-        st.markdown("---")
         
         # =====================================================================
         # 📘 NEW FEATURE: DYNAMIC STATE REGULATION COMPLIANCE PORTAL 
