@@ -403,28 +403,40 @@ if lat and lon:
                 zoom_start=st.session_state.map_view["zoom"],
                 tiles="CartoDB positron" # Ultra-clean light gray canvas so contour lines jump out visually
             )
-# 🪝 Washington Freshwater Lake Depth Contour Layer Link
+            # 🪝 Washington Freshwater Lake Depth Contour Layer Link
             if detected_state == "Washington" and env_choice == "Freshwater":
                 try:
-                    # Target a safe bounding box query to only fetch contours close to the active water body coordinate focus
+                    # 1. Build a target bounding box right around the active lake focus area
                     geojson_url = (
                         f"https://services.arcgis.com/VAIwGt9QBj4m1oEs/ArcGIS/rest/services/"
                         f"Lake_Bathymetric_Contour_Lines/FeatureServer/0/query?"
-                        f"where=1%3D1&geometry={lon-0.08},{lat-0.08},{lon+0.08},{lat+0.08}&"
+                        f"where=1%3D1&geometry={lon-0.06},{lat-0.06},{lon+0.06},{lat+0.06}&"
                         f"geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&"
-                        f"outFields=*&returnGeometry=true&f=geojson"
+                        f"outFields=contour&returnGeometry=true&f=geojson"
                     )
                     
-                    folium.GeoJson(
-                        geojson_url,
-                        name="WDFW Depth Contours",
-                        style_function=lambda x: {
-                            'color': '#2563eb', # Crisp royal blue contour lines
-                            'weight': 1.5,
-                            'opacity': 0.85
-                        },
-                        tooltip=folium.GeoJsonTooltip(fields=['contour'], aliases=['Depth (ft):'])
-                    ).add_to(m)
+                    # 2. Download the geographic features via backend Python to completely bypass browser blocks
+                    response = requests.get(geojson_url, timeout=5)
+                    
+                    if response.status_code == 200:
+                        geojson_data = response.json()
+                        
+                        # Only inject the layer if the server actually returned geometric features
+                        if geojson_data.get("features"):
+                            folium.GeoJson(
+                                geojson_data,
+                                name="WDFW Depth Contours",
+                                style_function=lambda x: {
+                                    'color': '#0284c7', # Deep sky blue contour lines
+                                    'weight': 1.8,
+                                    'opacity': 0.8
+                                },
+                                tooltip=folium.GeoJsonTooltip(
+                                    fields=['contour'], 
+                                    aliases=['Depth (ft):'],
+                                    localize=True
+                                )
+                            ).add_to(m)
                 except Exception:
                     pass
                 
