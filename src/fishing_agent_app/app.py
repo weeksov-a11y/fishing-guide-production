@@ -404,17 +404,15 @@ if lat and lon:
                 tiles="CartoDB positron" # Ultra-clean light gray canvas so contour lines jump out visually
             )
 
-            # 🪝 Washington Freshwater Lake Depth Contour Layer Link
+          # 🪝 Washington Freshwater Lake Depth Contour Layer Link
             if detected_state == "Washington" and env_choice == "Freshwater":
-                folium.WmsTileLayer(
-                    url="https://gis.ecology.wa.gov/arcgis/services/SEA/LakeBathymetry/MapServer/WMSServer",
-                    layers="0",
-                    fmt="image/png",
-                    transparent=True,
+                folium.TileLayer(
+                    tiles="https://services.arcgis.com/VAIwGt9QBj4m1oEs/ArcGIS/rest/services/Lake_Bathymetric_Contour_Lines/FeatureServer/0/query?f=geojson",
                     name="WDFW Depth Contours",
                     attr="WA Dept of Ecology & WDFW",
                     overlay=True,
-                    control=True
+                    control=True,
+                    style={'color': '#1d4ed8', 'weight': 1.5, 'opacity': 0.7}
                 ).add_to(m)
                 
             # ⚓ Saltwater Coastal Navigation Chart Layer Link
