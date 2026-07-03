@@ -385,73 +385,49 @@ if lat and lon:
             </div>
         """, unsafe_allow_html=True)
 
-        # =====================================================================
-        # 🗺️ GRAPHICAL GRID & TOPOGRAPHIC DEPTH CONTOUR ENGINE
+# =====================================================================
+        # 🗺️ GRAPHICAL GRID & MULTILAYER ENVIRONMENTAL VISIBILITY ENGINE
         # =====================================================================
         m_col1, m_col2 = st.columns([2, 1])
         
         with m_col1:
-            st.markdown(f"### 🛰️ Dynamic Topographic Survey Grid: {active_water_body}")
+            st.markdown(f"### 🛰️ Interactive Structural Grid: {active_water_body}")
             
             if "map_view" not in st.session_state or st.session_state.get("last_water_body") != active_water_body:
-                st.session_state.map_view = {"center": [lat, lon], "zoom": 14} # Zoomed in closer to see drop-offs clearly
+                st.session_state.map_view = {"center": [lat, lon], "zoom": 14}
                 st.session_state.last_water_body = active_water_body
 
-            # 🚀 SMOOTH PERFORMANCE BASE: Renders a crisp background instantly
+            # Initialize map with an open-source fallback layer
             m = folium.Map(
                 location=st.session_state.map_view["center"], 
-                zoom_start=st.session_state.map_view["zoom"],
-                tiles="CartoDB positron" # Ultra-clean light gray canvas so contour lines jump out visually
+                zoom_start=st.session_state.map_view["zoom"]
             )
-            # 🪝 Washington Freshwater Lake Depth Contour Layer Link
-            if detected_state == "Washington" and env_choice == "Freshwater":
-                try:
-                    # 1. Build a target bounding box right around the active lake focus area
-                    geojson_url = (
-                        f"https://services.arcgis.com/VAIwGt9QBj4m1oEs/ArcGIS/rest/services/"
-                        f"Lake_Bathymetric_Contour_Lines/FeatureServer/0/query?"
-                        f"where=1%3D1&geometry={lon-0.06},{lat-0.06},{lon+0.06},{lat+0.06}&"
-                        f"geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&"
-                        f"outFields=contour&returnGeometry=true&f=geojson"
-                    )
-                    
-                    # 2. Download the geographic features via backend Python to completely bypass browser blocks
-                    response = requests.get(geojson_url, timeout=5)
-                    
-                    if response.status_code == 200:
-                        geojson_data = response.json()
-                        
-                        # Only inject the layer if the server actually returned geometric features
-                        if geojson_data.get("features"):
-                            folium.GeoJson(
-                                geojson_data,
-                                name="WDFW Depth Contours",
-                                style_function=lambda x: {
-                                    'color': '#0284c7', # Deep sky blue contour lines
-                                    'weight': 1.8,
-                                    'opacity': 0.8
-                                },
-                                tooltip=folium.GeoJsonTooltip(
-                                    fields=['contour'], 
-                                    aliases=['Depth (ft):'],
-                                    localize=True
-                                )
-                            ).add_to(m)
-                except Exception:
-                    pass
-                
-            # ⚓ Saltwater Coastal Navigation Chart Layer Link
-            elif env_choice == "Saltwater (Marine)":
-                folium.WmsTileLayer(
-                    url="https://coast.noaa.gov/arcgis/services/OceanReports/BathymetricContours/MapServer/WMSServer",
-                    layers="0",
-                    fmt="image/png",
-                    transparent=True,
-                    name="NOAA Marine Bathymetry",
-                    attr="NOAA National Ocean Service",
-                    overlay=True,
-                    control=True
-                ).add_to(m)
+
+            # 🗺️ LAYER 1: Google Hybrid Imagery (Reveals shallow flats, weed lines, and structure via color shifts)
+            folium.TileLayer(
+                tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+                attr="Google Hybrid Imagery",
+                name="Google Satellite Hybrid",
+                overlay=False,
+                control=True
+            ).add_to(m)
+
+            # ⛰️ LAYER 2: OpenTopoMap (Provides high-contrast topographic elevation lines and contours)
+            folium.TileLayer(
+                tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+                attr="OpenTopoMap Contributors",
+                name="Topographic Terrain Model",
+                overlay=False,
+                control=True
+            ).add_to(m)
+
+            # 🏙️ LAYER 3: Clean Street Layout
+            folium.TileLayer(
+                tiles="OpenStreetMap",
+                name="Standard Navigation Roadmap",
+                overlay=False,
+                control=True
+            ).add_to(m)
 
             # Render existing user catches from local SQLite DB
             try:
@@ -467,6 +443,8 @@ if lat and lon:
             except Exception:
                 pass
 
+            # Inject the overlay controller box in the top right corner
+            folium.LayerControl(position="topright", collapsed=False).add_to(m)
             m.add_child(folium.LatLngPopup())
             
             # 🔒 ANTI-LAG PERFORMANCE GUARD: Freezes app cycle unless waypoint dropped
@@ -474,10 +452,9 @@ if lat and lon:
                 m, 
                 width=750, 
                 height=450, 
-                key=f"depth_grid_{lat}_{lon}",
+                key=f"structural_grid_{lat}_{lon}",
                 returned_objects=["last_clicked"]
             )
-        
         # =====================================================================
         # 📘 NEW FEATURE: DYNAMIC STATE REGULATION COMPLIANCE PORTAL 
         # =====================================================================
