@@ -386,27 +386,37 @@ if lat and lon:
         """, unsafe_allow_html=True)
 
         # =====================================================================
-        # 🗺️ GRAPHICAL GRID & PREMIUM INTERACTIVE LOGGING CORE
+        # 🗺️ GRAPHICAL GRID & NOAA AUTOMATED COMPONENT FREEZINGCORE
         # =====================================================================
         m_col1, m_col2 = st.columns([2, 1])
         
         with m_col1:
-            st.markdown(f"### 🛰️ Interactive Hybrid Survey Grid: {active_water_body}")
+            st.markdown(f"### 🛰️ Interactive NOAA Chart Grid: {active_water_body}")
             
             if "map_view" not in st.session_state or st.session_state.get("last_water_body") != active_water_body:
-                st.session_state.map_view = {"center": [lat, lon], "zoom": 13}
+                st.session_state.map_view = {"center": [lat, lon], "zoom": 12}
                 st.session_state.last_water_body = active_water_body
 
-            m = folium.Map(location=st.session_state.map_view["center"], zoom_start=st.session_state.map_view["zoom"])
-            
-            folium.TileLayer(
-                tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-                attr="Google Hybrid Imagery Engine",
-                name="Google Hybrid Layers",
-                overlay=False,
+            # Initialize lightweight basemap
+            m = folium.Map(
+                location=st.session_state.map_view["center"], 
+                zoom_start=st.session_state.map_view["zoom"],
+                tiles="OpenStreetMap"
+            )
+
+            # 🌊 STREAMING CORES: Injects NOAA's Free High-Resolution Bathymetric Contours Layer
+            folium.WmsTileLayer(
+                url="https://coast.noaa.gov/arcgis/services/OceanReports/BathymetricContours/MapServer/WMSServer",
+                layers="0",
+                fmt="image/png",
+                transparent=True,
+                name="NOAA Depth Contours",
+                attr="NOAA National Ocean Service",
+                overlay=True,
                 control=True
             ).add_to(m)
 
+            # Render existing user catches from local SQLite DB
             try:
                 conn = sqlite3.connect(DB_FILE)
                 saved_catches = pd.read_sql_query("SELECT * FROM catch_log", conn)
@@ -414,48 +424,23 @@ if lat and lon:
                 for _, row in saved_catches.iterrows():
                     folium.Marker(
                         location=[row['latitude'], row['longitude']],
-                        popup=f"🎣 {row['species']} ({row['weight']} lbs)<br>⏳ {row['timestamp']}",
+                        popup=f"🎣 {row['species']} ({row['weight']} lbs)",
                         icon=folium.Icon(color='blue', icon='fish', prefix='fa')
                     ).add_to(m)
             except Exception:
-                saved_catches = pd.DataFrame()
+                pass
 
             m.add_child(folium.LatLngPopup())
             
-            map_data = st_folium(m, width=750, height=450, key=f"stable_map_{active_water_body}")
-
-            if map_data.get("center"):
-                st.session_state.map_view["center"] = [map_data["center"]["lat"], map_data["center"]["lng"]]
-                st.session_state.map_view["zoom"] = map_data["zoom"]
-
-        with m_col2:
-            st.markdown("### 📝 Telemetry Log Hub")
-            clicked_coords = map_data.get("last_clicked")
-            
-            if clicked_coords:
-                c_lat, c_lon = clicked_coords["lat"], clicked_coords["lng"]
-                st.success(f"🎯 Pin Set: {c_lat:.4f}, {c_lon:.4f}")
-                
-                with st.form("catch_form", clear_on_submit=True):
-                    species_log = st.selectbox("Caught Profile:", [target_fish] if target_fish else ["Largemouth Bass"])
-                    weight_log = st.number_input("Weight (lbs):", min_value=0.1, value=2.5)
-                    substrate_log = st.segmented_control("Substrate Composition:", ["Sand Bank", "Rock/Boulders", "Mud/Silt", "Weed Line"], default="Sand Bank")
-                    submit = st.form_submit_button("🔒 Secure Entry to Local DB")
-                    
-                    if submit:
-                        conn = sqlite3.connect(DB_FILE)
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            INSERT INTO catch_log (timestamp, lake_name, species, weight, latitude, longitude, substrate)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (datetime.now().strftime("%Y-%m-%d %H:%M"), active_water_body, species_log, weight_log, c_lat, c_lon, substrate_log))
-                        conn.commit()
-                        conn.close()
-                        st.toast("Catch synchronized to hard drive storage workspace!", icon="💾")
-                        st.rerun()
-            else:
-                st.info("💡 Tap directly on any hot spot or structure on the map grid to lock coordinates and open your premium catch logger panel.")
-
+            # 🔒 PERFORMANCE LOCK: Tell Streamlit to ONLY re-run when a user clicks a waypoint.
+            # This ignores panning/zooming, eliminating the loading lag.
+            map_data = st_folium(
+                m, 
+                width=750, 
+                height=450, 
+                key=f"noaa_grid_{st.session_state.lat}_{st.session_state.lon}",
+                returned_objects=["last_clicked"]
+            )
         st.markdown("---")
         
         # =====================================================================
