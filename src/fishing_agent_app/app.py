@@ -403,17 +403,30 @@ if lat and lon:
                 zoom_start=st.session_state.map_view["zoom"],
                 tiles="CartoDB positron" # Ultra-clean light gray canvas so contour lines jump out visually
             )
-
-          # 🪝 Washington Freshwater Lake Depth Contour Layer Link
+# 🪝 Washington Freshwater Lake Depth Contour Layer Link
             if detected_state == "Washington" and env_choice == "Freshwater":
-                folium.TileLayer(
-                    tiles="https://services.arcgis.com/VAIwGt9QBj4m1oEs/ArcGIS/rest/services/Lake_Bathymetric_Contour_Lines/FeatureServer/0/query?f=geojson",
-                    name="WDFW Depth Contours",
-                    attr="WA Dept of Ecology & WDFW",
-                    overlay=True,
-                    control=True,
-                    style={'color': '#1d4ed8', 'weight': 1.5, 'opacity': 0.7}
-                ).add_to(m)
+                try:
+                    # Target a safe bounding box query to only fetch contours close to the active water body coordinate focus
+                    geojson_url = (
+                        f"https://services.arcgis.com/VAIwGt9QBj4m1oEs/ArcGIS/rest/services/"
+                        f"Lake_Bathymetric_Contour_Lines/FeatureServer/0/query?"
+                        f"where=1%3D1&geometry={lon-0.08},{lat-0.08},{lon+0.08},{lat+0.08}&"
+                        f"geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&"
+                        f"outFields=*&returnGeometry=true&f=geojson"
+                    )
+                    
+                    folium.GeoJson(
+                        geojson_url,
+                        name="WDFW Depth Contours",
+                        style_function=lambda x: {
+                            'color': '#2563eb', # Crisp royal blue contour lines
+                            'weight': 1.5,
+                            'opacity': 0.85
+                        },
+                        tooltip=folium.GeoJsonTooltip(fields=['contour'], aliases=['Depth (ft):'])
+                    ).add_to(m)
+                except Exception:
+                    pass
                 
             # ⚓ Saltwater Coastal Navigation Chart Layer Link
             elif env_choice == "Saltwater (Marine)":
