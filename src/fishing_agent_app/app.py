@@ -509,51 +509,37 @@ if lat and lon:
 
         st.markdown("---")
         
-    # =====================================================================
-        # 🗺️ DYNAMIC EXTERNAL HYDRO GRAPHICS LINK GENERATOR
+   # =====================================================================
+        # 🗺️ DYNAMIC NATIONWIDE HYDRO GRAPHICS LINK GENERATOR (PATH 2)
         # =====================================================================
         b_col1, b_col2 = st.columns(2)
         with b_col1: 
+            # Clean up the lake string for clean search query assembly
             clean_lake_name = active_water_body.replace("Lake", "").strip()
-            url_encoded_name = urllib.parse.quote(clean_lake_name)
             
-            # Format name for direct WDFW PDF server fallback matching
-            pdf_filename = clean_lake_name.lower().replace(" ", "")
+            # Combine the water body and state into a high-intent search query
+            # Adding "depth contour map" forces Google Images to filter out standard road maps
+            search_query = f"{clean_lake_name} {detected_state} depth contour map"
+            url_encoded_query = urllib.parse.quote(search_query)
             
             if detected_state == "Washington" and env_choice == "Freshwater":
-                # 📡 GIS GEOMETRY ENVELOPE GENERATOR
-                # Computes a roughly ~2-mile bounding box buffer from the focused target point
-                lon_buffer = 0.015  # Left/Right span adjustment
-                lat_buffer = 0.012  # Up/Down span adjustment
+                # Keep the premium calculated ArcGIS box link for your home turf
+                lon_buffer = 0.015  
+                lat_buffer = 0.012  
                 
-                min_lon = lon - lon_buffer
-                min_lat = lat - lat_buffer
-                max_lon = lon + lon_buffer
-                max_lat = lat + lat_buffer
-                
-                # Compiles the direct link straight into the live WDFW ArcGIS Depth Chart viewer
                 state_gis_url = (
                     f"https://wdfw.maps.arcgis.com/apps/mapviewer/index.html?"
                     f"webmap=fb6754c02ad444a6a8ef7a4d5d1c5fe5&"
-                    f"extent={min_lon:.6f},{min_lat:.6f},{max_lon:.6f},{max_lat:.6f}"
+                    f"extent={lon-lon_buffer:.6f},{lat-lat_buffer:.6f},{lon+lon_buffer:.6f},{lat+lat_buffer:.6f}"
                 )
                 gis_label = f"🗺️ Launch WDFW Interactive Depth Map"
-                
-            elif detected_state == "Washington":
-                state_gis_url = f"https://wdfw.wa.gov/fishing/locations/lowland-lakes?name={url_encoded_name}"
-                gis_label = f"🗺️ Launch WDFW Location Portal"
-            elif detected_state == "Oregon":
-                state_gis_url = "https://oregonexplorer.info/topics/Water"
-                gis_label = "🗺️ Open Oregon Explorer GIS Engine"
-            elif detected_state == "Texas":
-                state_gis_url = "https://tpwd.texas.gov/fishboat/fish/recreational/lakes/"
-                gis_label = "🗺️ Open TPWD Volumetric Surveys"
             else:
-                state_gis_url = f"https://www.google.com/search?q={url_encoded_name}+{detected_state}+depth+contour+map&tbm=isch"
-                gis_label = "🔍 Scan Public Contour Archives"
+                # 🚀 AUTOMATED NATIONWIDE NET: Drops users straight into filtered Google Images
+                # &tbm=isch toggles Google's "Image Search" tab automatically
+                state_gis_url = f"https://www.google.com/search?q={url_encoded_query}&tbm=isch"
+                gis_label = f"🔍 Open {clean_lake_name} Depth Contour Charts"
                 
             st.link_button(gis_label, state_gis_url, use_container_width=True, type="primary")
-
         st.markdown("---")
         tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs(["🌦️ Atmosphere", "🌊 Water Gauges", "🎣 Tactical Strategy", "🚨 Game Rules"])
 
