@@ -139,10 +139,9 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
         raw_lon = float(location_data['longitude'])
         
         # 🛡️ HARDWARE LATENCY FILTER: Detects stale or glitchy out-of-state cellular carrier bounces
-        # If the coordinates place you outside your region, default back to home turf
         if raw_lat < 45.5 or raw_lat > 49.0 or raw_lon < -124.8 or raw_lon > -120.5:
-            lat = 46.9844   # Lake Kapowsin latitude center
-            lon = -122.2255  # Lake Kapowsin longitude center
+            lat = 46.9844   # Lake Kapowsin baseline latitude center
+            lon = -122.2255  # Lake Kapowsin baseline longitude center
             location_name = "Tacoma, WA"
             st.sidebar.warning("⚠️ Stale carrier location detected. Applying home region calibration.")
         else:
@@ -164,7 +163,6 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
         st.success("🔒 Satellite Handshake Verified")
     else:
         st.write("⏳ *Awaiting satellite link activation click above...*")
-
 
 elif routing_mode == "📝 Enter a Specific Water Body By Name":
     user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Puyallup River")
@@ -333,9 +331,13 @@ else:
             lon = float(osm_res[0]["lon"])
             location_name = base_anchor_city
 
-if not lat or not lon:
-    lat, lon = 47.2529, -122.4443
+# 🛡️ HARDWARE SECURITY SHIELD: Blocks missing/None variables before loading map libraries
+if (lat is None) or (lon is None) or (not isinstance(lat, (int, float))) or (not isinstance(lon, (int, float))):
+    lat, lon = 46.9844, -122.2255  # Lock back onto safe local waters
     location_name = "Tacoma, WA"
+
+lat = float(lat)
+lon = float(lon)
 
 check_str = location_name.lower() if ("location_name" in locals() and location_name != "") else base_anchor_city.lower()
 detected_state = "Texas" if "texas" in check_str or "tx" in check_str else "Oregon" if "oregon" in check_str or "or" in check_str or (lat < 46.25 and "washington" not in check_str and "pennsylvania" not in check_str) else "Pennsylvania" if "pennsylvania" in check_str or "pa" in check_str else "Washington" if "washington" in check_str or "wa" in check_str else input_state
@@ -470,22 +472,19 @@ if lat and lon:
             st.markdown(f"### 🛰️ Interactive Structural Grid: {active_water_body}")
             
             # 🔄 AUTOMATED MAP VIEW RESETTER
-            # Forces the map layout to snap onto the newly looked up lake coordinates 
-            # if the active water body name changes from "Current GPS Location"
             if "map_view" not in st.session_state or st.session_state.get("last_water_body") != active_water_body:
                 st.session_state.map_view = {"center": [lat, lon], "zoom": 14}
                 st.session_state.last_water_body = active_water_body
             elif active_water_body != "Current GPS Location":
-                # Ensure manual or suggested lakes overwrite previous GPS freezes
                 st.session_state.map_view["center"] = [lat, lon]
 
-            # Initialize map with the refreshed center matrix coordinates
+            # Initialize map with an open-source fallback layer
             m = folium.Map(
                 location=st.session_state.map_view["center"], 
                 zoom_start=st.session_state.map_view["zoom"]
             )
 
-            # 🗺️ LAYER 1: Google Hybrid Imagery (Reveals shallow flats, weed lines, and structure via color shifts)
+            # 🗺️ LAYER 1: Google Hybrid Imagery
             folium.TileLayer(
                 tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
                 attr="Google Hybrid Imagery",
@@ -494,7 +493,7 @@ if lat and lon:
                 control=True
             ).add_to(m)
 
-            # ⛰️ LAYER 2: OpenTopoMap (Provides high-contrast topographic elevation lines and contours)
+            # ⛰️ LAYER 2: OpenTopoMap
             folium.TileLayer(
                 tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
                 attr="OpenTopoMap Contributors",
@@ -529,7 +528,7 @@ if lat and lon:
             folium.LayerControl(position="topright", collapsed=False).add_to(m)
             m.add_child(folium.LatLngPopup())
             
-            # 🔒 ANTI-LAG PERFORMANCE GUARD: Freezes app cycle unless waypoint dropped
+            # 🔒 ANTI-LAG PERFORMANCE GUARD
             map_data = st_folium(
                 m, 
                 width=750, 
@@ -611,7 +610,7 @@ if lat and lon:
         with tab_strategy:
             if execute_crew:
                 with st.spinner("🤖 Formulating tactics..."):
-                    # 🚀 UPGRADED PART 2: Passes all selected survey details straight into the AI Engine core
+                    # 🚀 PASSES ALL SELECTED SURVEY DETAILS STRAIGHT TO AI BACKEND CORE
                     result = FishingAgentApp().crew().kickoff(inputs={
                         'target_fish': target_fish, 
                         'environment': f"{water_context} holding active targets around {cover_type} during the {spawn_phase} lifecycle framework under a {fishing_style} approach pattern.", 
