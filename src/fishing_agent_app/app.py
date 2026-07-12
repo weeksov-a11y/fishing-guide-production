@@ -179,39 +179,64 @@ else:
 target_fish = st.pills("Choose target profile:", options=species_options, default=species_options[0] if species_options else "", label_visibility="collapsed")
 
 # =====================================================================
-# 🔍 PHASE 1 ENGINE: DYNAMIC RADAR HOTSPOT ENGINE
+# 🔍 PHASE 1 ENGINE: CONDITIONAL DYNAMIC HOTSPOT SCOUTING
 # =====================================================================
-st.markdown("---")
-st.subheader("🔍 Phase 1: Scout Regional Hotspots")
-st.info("Formulate target options based on your exact satellite positioning metrics and active biological profiles.")
-
-if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_container_width=True):
-    if not base_anchor_city and lat and lon:
-        base_anchor_city = f"{lat}, {lon}"
-        
-    if base_anchor_city:
-        with st.spinner("🤖 Scanning regional data networks to compile optimized destinations..."):
-            prompt = f"Provide a clean list of exactly 5 real, specific local named {env_choice} fishing locations (lakes, rivers, or public access boat launches) located within a 50 mile driving radius of {base_anchor_city} that offer the highest mathematical probability for catching {target_fish} under current seasonal patterns. Output ONLY the 5 specific names separated by newlines, with no markdown formatting, no bullet points, no dashes, and no numbers."
-            try:
-                scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
-                raw_text = str(scout_res).strip()
-                cleaned_list = [re.sub(r'^\d+[.)]\s*|^[*-]\s*', '', line).strip() for line in raw_text.split("\n") if line.strip()]
-                if cleaned_list:
-                    st.session_state.scouted_lakes_options = cleaned_list[:5]
-            except Exception as e:
-                st.error(f"Scouting Engine update interrupted: {e}")
-
 active_water_body = ""
-if st.session_state.scouted_lakes_options:
-    selected_suggested = st.selectbox(
-        "🎯 Select your targeted destination from the scouted hotspots:",
-        options=[""] + st.session_state.scouted_lakes_options,
-        index=0
-    )
-    if selected_suggested and selected_suggested != "":
-        active_water_body = selected_suggested
+
+# 🚀 SMART BYPASS PATHWAY: If the user chose manual text input, skip the scouting widgets entirely
+if routing_mode == "📝 Enter a Specific Water Body By Name":
+    if 'user_water' in locals() and user_water.strip():
+        active_water_body = user_water.strip()
 else:
-    st.write("⏳ *Click the Scout button above to dynamically populate nearby hotspots.*")
+    # Only show the scouting steps if using GPS mode or looking for suggestions
+    st.markdown("---")
+    st.subheader("🔍 Phase 1: Scout Regional Hotspots")
+    st.info("Formulate target options based on your exact satellite positioning metrics and active biological profiles.")
+
+    if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_container_width=True):
+        if not base_anchor_city and lat and lon:
+            base_anchor_city = f"{lat}, {lon}"
+            
+        if base_anchor_city:
+            with st.spinner("🤖 Scanning regional data networks to compile optimized destinations..."):
+                prompt = f"Provide a clean list of exactly 5 real, specific local named {env_choice} fishing locations (lakes, rivers, or public access boat launches) located within a 50 mile driving radius of {base_anchor_city} that offer the highest mathematical probability for catching {target_fish} under current seasonal patterns. Output ONLY the 5 specific names separated by newlines, with no markdown formatting, no bullet points, no dashes, and no numbers."
+                try:
+                    scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
+                    raw_text = str(scout_res).strip()
+                    cleaned_list = [re.sub(r'^\d+[.)]\s*|^[*-]\s*', '', line).strip() for line in raw_text.split("\n") if line.strip()]
+                    if cleaned_list:
+                        st.session_state.scouted_lakes_options = cleaned_list[:5]
+                except Exception as e:
+                    st.error(f"Scouting Engine update interrupted: {e}")
+
+    if st.session_state.scouted_lakes_options:
+        selected_suggested = st.selectbox(
+            "🎯 Select your targeted destination from the scouted hotspots:",
+            options=[""] + st.session_state.scouted_lakes_options,
+            index=0
+        )
+        if selected_suggested and selected_suggested != "":
+            active_water_body = selected_suggested
+    else:
+        st.write("⏳ *Click the Scout button above to dynamically populate nearby hotspots.*")
+
+# Resolve coordinates for the chosen lake (works for both paths)
+if active_water_body:
+    try:
+        query_body = active_water_body.strip()
+        if env_choice == "Freshwater" and fw_category == "🏡 Lakes" and not re.search(r"\blake\b", query_body, re.IGNORECASE):
+            query_body = f"Lake {query_body}"
+        search_query = f"{query_body}, {input_state}"
+        osm_res = get_coordinates_from_osm(search_query)
+        if not osm_res:
+            osm_res = get_coordinates_from_osm(query_body)
+        if osm_res:
+            lat = float(osm_res[0]["lat"])
+            lon = float(osm_res[0]["lon"])
+            location_name = active_water_body
+    except Exception:
+        pass
+
 
 # Resolve coordinates for the chosen lake
 if active_water_body:
