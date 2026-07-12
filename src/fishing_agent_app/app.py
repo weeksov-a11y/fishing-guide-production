@@ -24,12 +24,20 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# Route AI Scouting Engine through Groq's larger 70b capacity tier to balance free token limits
+# 🔑 Explicitly fetch the key from secrets to bypass environment latency bugs
+groq_key_fallback = st.secrets["GROQ_API_KEY"] if "GROQ_API_KEY" in st.secrets else os.environ.get("GROQ_API_KEY")
+
+# 🛰️ Model A: Route AI Scouting Engine through the 70b tier (Separate Limit Pool)
 gemini_scout_model = LLM(
-    model="groq/llama3-70b-8192",  # 🚀 Switched from 8b to 70b to tap a separate free limit pool
+    model="groq/llama3-70b-8192",
     temperature=0.1,
     api_key=groq_key_fallback
 )
+
+# 🎣 Model B: Route the Phase 5 Tactical Strategy Crew through Mixtral to clear token bottlenecks
+# We override the default system environment variables so CrewAI is forced to use it globally
+os.environ["OPENAI_MODEL_NAME"] = "groq/mixtral-8x7b-32768"
+
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
 st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="wide")
