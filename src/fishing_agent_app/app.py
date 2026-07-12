@@ -469,11 +469,17 @@ if lat and lon:
         with m_col1:
             st.markdown(f"### 🛰️ Interactive Structural Grid: {active_water_body}")
             
+            # 🔄 AUTOMATED MAP VIEW RESETTER
+            # Forces the map layout to snap onto the newly looked up lake coordinates 
+            # if the active water body name changes from "Current GPS Location"
             if "map_view" not in st.session_state or st.session_state.get("last_water_body") != active_water_body:
                 st.session_state.map_view = {"center": [lat, lon], "zoom": 14}
                 st.session_state.last_water_body = active_water_body
+            elif active_water_body != "Current GPS Location":
+                # Ensure manual or suggested lakes overwrite previous GPS freezes
+                st.session_state.map_view["center"] = [lat, lon]
 
-            # Initialize map with an open-source fallback layer
+            # Initialize map with the refreshed center matrix coordinates
             m = folium.Map(
                 location=st.session_state.map_view["center"], 
                 zoom_start=st.session_state.map_view["zoom"]
