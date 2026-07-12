@@ -403,6 +403,8 @@ if lat and lon:
             cloud_word = "Clear/Sunny" if current['cloud_cover'] < 20 else "Partially Cloudy" if current['cloud_cover'] < 60 else "Overcast"
             
             recent_rain = sum(weather['hourly'].get('precipitation', [0.0])[-12:])
+            
+            # Safe runtime fallback tracker for user choices vs telemetry calculations
             if water_clarity:
                 clarity_estimate = water_clarity
             else:
