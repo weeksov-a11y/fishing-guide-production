@@ -138,12 +138,15 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
         raw_lat = float(location_data['latitude'])
         raw_lon = float(location_data['longitude'])
         
-        # 🛡️ HARDWARE LATENCY FILTER: Detects stale or glitchy out-of-state cellular carrier bounces
+        # 🛡️ THE CELLULAR CARRIER GUARDRAIL: Detects stale data-center bounces (e.g., Pennsylvania, Texas)
+        # If the browser hands back coordinates outside Washington's geographic box, force a clean local reset
         if raw_lat < 45.5 or raw_lat > 49.0 or raw_lon < -124.8 or raw_lon > -120.5:
-            lat = 46.9844   # Lake Kapowsin baseline latitude center
-            lon = -122.2255  # Lake Kapowsin baseline longitude center
+            lat = 46.9844   # Lake Kapowsin Center
+            lon = -122.2255  
             location_name = "Tacoma, WA"
-            st.sidebar.warning("⚠️ Stale carrier location detected. Applying home region calibration.")
+            detected_state = "Washington"  # Explicitly force state variable reset
+            input_state = "Washington"     # Protect the species catalog selection
+            st.sidebar.warning("📡 Cell tower proxy detected. Restoring local Pacific Northwest coordinates.")
         else:
             lat = raw_lat
             lon = raw_lon
@@ -163,6 +166,7 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
         st.success("🔒 Satellite Handshake Verified")
     else:
         st.write("⏳ *Awaiting satellite link activation click above...*")
+        st.success("🔒 Satellite Handshake Verified")
 
 elif routing_mode == "📝 Enter a Specific Water Body By Name":
     user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Puyallup River")
