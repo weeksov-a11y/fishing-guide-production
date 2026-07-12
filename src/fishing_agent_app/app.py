@@ -329,6 +329,38 @@ if not lat or not lon:
 check_str = location_name.lower() if ("location_name" in locals() and location_name != "") else base_anchor_city.lower()
 detected_state = "Texas" if "texas" in check_str or "tx" in check_str else "Oregon" if "oregon" in check_str or "or" in check_str or (lat < 46.25 and "washington" not in check_str and "pennsylvania" not in check_str) else "Pennsylvania" if "pennsylvania" in check_str or "pa" in check_str else "Washington" if "washington" in check_str or "wa" in check_str else input_state
 agency_name = "TPWD" if detected_state == "Texas" else "ODFW" if detected_state == "Oregon" else "PFBC" if detected_state == "Pennsylvania" else "WDFW" if detected_state == "Washington" else f"{detected_state} Wildlife"
+        # =====================================================================
+        # 📋 INTERACTIVE PRE-TRIP FACTOR SURVEY (THE FISHBOX CORE)
+        # =====================================================================
+        st.markdown("### 🛠️ Step 4.5: Micro-Targeting Survey Factors")
+        with st.expander("🔬 Fine-Tune Algorithmic Factor Controls", expanded=True):
+            s_col1, s_col2 = st.columns(2)
+            with s_col1:
+                water_clarity = st.radio(
+                    "💧 Current Water Clarity Observation:",
+                    options=["Clear Water Visibility", "Slightly Stained / Milky", "Stained / Muddy Runoff"],
+                    horizontal=True
+                )
+                cover_type = st.radio(
+                    "🌿 Dominant Visible Structure/Cover:",
+                    options=["Submerged Timber/Logs", "Heavy Vegetation/Lily Pads", "Rocky Drop-offs & Riprap", "Docks & Structural Pilings"],
+                    horizontal=True
+                )
+            with s_col2:
+                spawn_phase = st.radio(
+                    "🐟 Lifecycle Breeding Target Stage:",
+                    options=["Deep Winter Staging", "Pre-Spawn Staging Flocks", "Shallow Spawning Beds", "Summer Post-Spawn Patterns"],
+                    horizontal=True
+                )
+                fishing_style = st.radio(
+                    "👟 Mobility / Angler Framework:",
+                    options=["Foot / Shoreline Angler", "Power Boat / Deep Hull", "Kayak / Stealth Shallow"],
+                    horizontal=True
+                )
+
+        # Update clarity estimate variable to use the user's manual eye observation
+        if water_clarity:
+            clarity_estimate = water_clarity
 
 # =====================================================================
 # 🚀 STEP 5: RUN COMPILATION ENGINE & RENDER DASHBOARD UI
