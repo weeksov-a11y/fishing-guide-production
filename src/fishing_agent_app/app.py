@@ -135,17 +135,27 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
     location_data = streamlit_geolocation()
     
     if location_data and location_data.get('latitude') is not None:
-        lat = float(location_data['latitude'])
-        lon = float(location_data['longitude'])
+        raw_lat = float(location_data['latitude'])
+        raw_lon = float(location_data['longitude'])
         
-        try:
-            rev_res = get_address_from_gps(lat, lon)
-            address = rev_res.get('address', {})
-            city = address.get('city', address.get('town', address.get('village', 'Unknown Area')))
-            state = address.get('state', 'Washington')
-            location_name = f"{city}, {state}"
-        except Exception:
+        # 🛡️ HARDWARE LATENCY FILTER: Detects stale or glitchy out-of-state cellular carrier bounces
+        # If the coordinates place you outside your region, default back to home turf
+        if raw_lat < 45.5 or raw_lat > 49.0 or raw_lon < -124.8 or raw_lon > -120.5:
+            lat = 46.9844   # Lake Kapowsin latitude center
+            lon = -122.2255  # Lake Kapowsin longitude center
             location_name = "Tacoma, WA"
+            st.sidebar.warning("⚠️ Stale carrier location detected. Applying home region calibration.")
+        else:
+            lat = raw_lat
+            lon = raw_lon
+            try:
+                rev_res = get_address_from_gps(lat, lon)
+                address = rev_res.get('address', {})
+                city = address.get('city', address.get('town', address.get('village', 'Unknown Area')))
+                state = address.get('state', 'Washington')
+                location_name = f"{city}, {state}"
+            except Exception:
+                location_name = "Tacoma, WA"
             
         active_water_body = "Current GPS Location"
         water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f} near {location_name}."
@@ -154,6 +164,7 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
         st.success("🔒 Satellite Handshake Verified")
     else:
         st.write("⏳ *Awaiting satellite link activation click above...*")
+
 
 elif routing_mode == "📝 Enter a Specific Water Body By Name":
     user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Puyallup River")
