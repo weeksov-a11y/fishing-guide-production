@@ -110,7 +110,7 @@ STATE_DICTIONARY = {
 # =====================================================================
 # 🛰️ STEP 1: LOCATION-FIRST ROUTING MODULE (THE ANCHOR)
 # =====================================================================
-st.markdown("### 📡 Step 1: Destination Routing Mode")
+st.subheader("📡 Step 1: Destination Routing Mode")
 routing_mode = st.radio(
     "How do you want to set your fishing location?",
     options=["🛰️ Use My Live GPS Coordinates", "📝 Enter a Specific Water Body By Name", "🔍 Suggest Local Hotspots"],
@@ -329,38 +329,38 @@ if not lat or not lon:
 check_str = location_name.lower() if ("location_name" in locals() and location_name != "") else base_anchor_city.lower()
 detected_state = "Texas" if "texas" in check_str or "tx" in check_str else "Oregon" if "oregon" in check_str or "or" in check_str or (lat < 46.25 and "washington" not in check_str and "pennsylvania" not in check_str) else "Pennsylvania" if "pennsylvania" in check_str or "pa" in check_str else "Washington" if "washington" in check_str or "wa" in check_str else input_state
 agency_name = "TPWD" if detected_state == "Texas" else "ODFW" if detected_state == "Oregon" else "PFBC" if detected_state == "Pennsylvania" else "WDFW" if detected_state == "Washington" else f"{detected_state} Wildlife"
-        # =====================================================================
-        # 📋 INTERACTIVE PRE-TRIP FACTOR SURVEY (THE FISHBOX CORE)
-        # =====================================================================
-        st.markdown("### 🛠️ Step 4.5: Micro-Targeting Survey Factors")
-        with st.expander("🔬 Fine-Tune Algorithmic Factor Controls", expanded=True):
-            s_col1, s_col2 = st.columns(2)
-            with s_col1:
-                water_clarity = st.radio(
-                    "💧 Current Water Clarity Observation:",
-                    options=["Clear Water Visibility", "Slightly Stained / Milky", "Stained / Muddy Runoff"],
-                    horizontal=True
-                )
-                cover_type = st.radio(
-                    "🌿 Dominant Visible Structure/Cover:",
-                    options=["Submerged Timber/Logs", "Heavy Vegetation/Lily Pads", "Rocky Drop-offs & Riprap", "Docks & Structural Pilings"],
-                    horizontal=True
-                )
-            with s_col2:
-                spawn_phase = st.radio(
-                    "🐟 Lifecycle Breeding Target Stage:",
-                    options=["Deep Winter Staging", "Pre-Spawn Staging Flocks", "Shallow Spawning Beds", "Summer Post-Spawn Patterns"],
-                    horizontal=True
-                )
-                fishing_style = st.radio(
-                    "👟 Mobility / Angler Framework:",
-                    options=["Foot / Shoreline Angler", "Power Boat / Deep Hull", "Kayak / Stealth Shallow"],
-                    horizontal=True
-                )
 
-        # Update clarity estimate variable to use the user's manual eye observation
-        if water_clarity:
-            clarity_estimate = water_clarity
+# =====================================================================
+# 📋 INTERACTIVE PRE-TRIP FACTOR SURVEY (THE FISHBOX CORE)
+# =====================================================================
+st.markdown("### 🛠️ Step 4.5: Micro-Targeting Survey Factors")
+with st.expander("🔬 Fine-Tune Algorithmic Factor Controls", expanded=True):
+    s_col1, s_col2 = st.columns(2)
+    with s_col1:
+        water_clarity = st.radio(
+            "💧 Current Water Clarity Observation:",
+            options=["Clear Water Visibility", "Slightly Stained / Milky", "Stained / Muddy Runoff"],
+            horizontal=True
+        )
+        cover_type = st.radio(
+            "🌿 Dominant Visible Structure/Cover:",
+            options=["Submerged Timber/Logs", "Heavy Vegetation/Lily Pads", "Rocky Drop-offs & Riprap", "Docks & Structural Pilings"],
+            horizontal=True
+        )
+    with s_col2:
+        spawn_phase = st.radio(
+            "🐟 Lifecycle Breeding Target Stage:",
+            options=["Deep Winter Staging", "Pre-Spawn Staging Flocks", "Shallow Spawning Beds", "Summer Post-Spawn Patterns"],
+            horizontal=True
+        )
+        fishing_style = st.radio(
+            "👟 Mobility / Angler Framework:",
+            options=["Foot / Shoreline Angler", "Power Boat / Deep Hull", "Kayak / Stealth Shallow"],
+            horizontal=True
+        )
+
+# Update clarity estimate variable to use the user's manual eye observation
+clarity_estimate = water_clarity
 
 # =====================================================================
 # 🚀 STEP 5: RUN COMPILATION ENGINE & RENDER DASHBOARD UI
@@ -393,7 +393,8 @@ if lat and lon:
             cloud_word = "Clear/Sunny" if current['cloud_cover'] < 20 else "Partially Cloudy" if current['cloud_cover'] < 60 else "Overcast"
             
             recent_rain = sum(weather['hourly'].get('precipitation', [0.0])[-12:])
-            clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility"
+            if not water_clarity:  # Fallback to automated if manual isn't parsed
+                clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility"
             estimated_water_temp = (0.7 * (sum(weather['hourly']['temperature_2m'][:72]) / 72)) + (0.3 * current['temperature_2m'])
             current_air_temp = current['temperature_2m']
 
@@ -593,7 +594,17 @@ if lat and lon:
         with tab_strategy:
             if execute_crew:
                 with st.spinner("🤖 Formulating tactics..."):
-                    result = FishingAgentApp().crew().kickoff(inputs={'target_fish': target_fish, 'environment': water_context, 'current_state': detected_state, 'water_temp': f"{estimated_water_temp:.1f}°F", 'barometric_pressure': trend, 'cloud_cover': cloud_word, 'wind_speed': f"{current['wind_speed_10m']} mph", 'water_clarity': clarity_estimate})
+                    # 🚀 UPGRADED PART 2: Passes all selected survey details straight into the AI Engine core
+                    result = FishingAgentApp().crew().kickoff(inputs={
+                        'target_fish': target_fish, 
+                        'environment': f"{water_context} holding active targets around {cover_type} during the {spawn_phase} lifecycle framework under a {fishing_style} approach pattern.", 
+                        'current_state': detected_state, 
+                        'water_temp': f"{estimated_water_temp:.1f}°F", 
+                        'barometric_pressure': trend, 
+                        'cloud_cover': cloud_word, 
+                        'wind_speed': f"{current['wind_speed_10m']} mph", 
+                        'water_clarity': clarity_estimate
+                    })
                     st.session_state.current_raw_output = result.raw if hasattr(result, 'raw') else str(result)
             if "current_raw_output" in st.session_state:
                 st.markdown(st.session_state.current_raw_output.split("### 🎣 Tactical Strategy Plan")[1].strip() if "### 🎣 Tactical Strategy Plan" in st.session_state.current_raw_output else st.session_state.current_raw_output)
