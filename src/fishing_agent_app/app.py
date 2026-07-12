@@ -241,7 +241,7 @@ if active_water_body and active_water_body != "Current GPS Location":
         pass
 
 # =====================================================================
-# 📋 STEP 4.5: INTERACTIVE PRE-TRIP FACTOR SURVEY
+# 📋 UPGRADED INTERACTIVE SURVEY (WITH AI AUTOMATION FALLBACKS)
 # =====================================================================
 water_clarity, cover_type, spawn_phase, fishing_style = None, None, None, None
 if active_water_body:
@@ -250,11 +250,27 @@ if active_water_body:
     with st.expander("🔬 Fine-Tune Algorithmic Factor Controls", expanded=True):
         s_col1, s_col2 = st.columns(2)
         with s_col1:
-            water_clarity = st.radio("💧 Current Water Clarity Observation:", options=["Clear Water Visibility", "Slightly Stained / Milky", "Stained / Muddy Runoff"], horizontal=True)
-            cover_type = st.radio("🌿 Dominant Visible Structure/Cover:", options=["Submerged Timber/Logs", "Heavy Vegetation/Lily Pads", "Rocky Drop-offs & Riprap", "Docks & Structural Pilings"], horizontal=True)
+            water_clarity = st.radio(
+                "💧 Current Water Clarity Observation:", 
+                options=["🤖 Let AI Agents Decide", "Clear Water Visibility", "Slightly Stained / Milky", "Stained / Muddy Runoff"], 
+                horizontal=True
+            )
+            cover_type = st.radio(
+                "🌿 Dominant Visible Structure/Cover:", 
+                options=["🤖 Let AI Agents Decide", "Submerged Timber/Logs", "Heavy Vegetation/Lily Pads", "Rocky Drop-offs & Riprap", "Docks & Structural Pilings"], 
+                horizontal=True
+            )
         with s_col2:
-            spawn_phase = st.radio("🐟 Lifecycle Breeding Target Stage:", options=["Deep Winter Staging", "Pre-Spawn Staging Flocks", "Shallow Spawning Beds", "Summer Post-Spawn Patterns"], horizontal=True)
-            fishing_style = st.radio("👟 Mobility / Angler Framework:", options=["Foot / Shoreline Angler", "Power Boat / Deep Hull", "Kayak / Stealth Shallow"], horizontal=True)
+            spawn_phase = st.radio(
+                "🐟 Lifecycle Breeding Target Stage:", 
+                options=["🤖 Let AI Agents Decide", "Deep Winter Staging", "Pre-Spawn Staging Flocks", "Shallow Spawning Beds", "Summer Post-Spawn Patterns"], 
+                horizontal=True
+            )
+            fishing_style = st.radio(
+                "👟 Mobility / Angler Framework:", 
+                options=["🤖 Let AI Agents Decide", "Foot / Shoreline Angler", "Power Boat / Deep Hull", "Kayak / Stealth Shallow"], 
+                horizontal=True
+            )
 
 # =====================================================================
 # 🚀 STEP 5: RUN COMPILATION ENGINE & RENDER DASHBOARD UI
@@ -368,21 +384,30 @@ if active_water_body and lat and lon:
 
         with tab_hydro: st.info(live_gauge_data)
 
-        with tab_strategy:
+                with tab_strategy:
             if execute_crew:
                 with st.spinner("🤖 Formulating tactical operations..."):
+                    # 🧠 Smart Fallback Core: Formats dynamic instructions if the user opts for "Let AI Agents Decide"
+                    selected_clarity = "dynamically determine water clarity based on recent rain/wind telemetry" if water_clarity == "🤖 Let AI Agents Decide" else water_clarity
+                    selected_cover = "predict high-probability structure zones for this water body type" if cover_type == "🤖 Let AI Agents Decide" else f"focus around {cover_type}"
+                    selected_spawn = f"automatically calculate the exact biological lifecycle phase for {target_fish} using the current month ({datetime.now().strftime('%B')}), location climate, and water temperature vectors" if spawn_phase == "🤖 Let AI Agents Decide" else f"utilize the {spawn_phase} lifecycle framework"
+                    selected_style = "provide general tactical approaches for both shore and watercraft setups" if fishing_style == "🤖 Let AI Agents Decide" else f"tailored for a {fishing_style} approach pattern"
+
                     water_context = f"the specific body of water named {active_water_body} in {detected_state}."
+                    
+                    # Kickoff the Crew with automated logic instructions built right in
                     result = FishingAgentApp().crew().kickoff(inputs={
                         'target_fish': target_fish, 
-                        'environment': f"{water_context} targeting areas with {cover_type} during the {spawn_phase} lifecycle framework under a {fishing_style} approach pattern.", 
+                        'environment': f"{water_context} holding active targets. Your primary directive is to {selected_spawn}, optimize hot spots targeting areas to {selected_cover} under a setting of {selected_style}.", 
                         'current_state': detected_state, 
                         'water_temp': f"{estimated_water_temp:.1f}°F", 
                         'barometric_pressure': trend, 
                         'cloud_cover': cloud_word, 
                         'wind_speed': f"{current['wind_speed_10m']} mph", 
-                        'water_clarity': clarity_estimate
+                        'water_clarity': selected_clarity
                     })
                     st.session_state.current_raw_output = result.raw if hasattr(result, 'raw') else str(result)
+
             if "current_raw_output" in st.session_state:
                 st.markdown(st.session_state.current_raw_output.split("### 🎣 Tactical Strategy Plan")[1].strip() if "### 🎣 Tactical Strategy Plan" in st.session_state.current_raw_output else st.session_state.current_raw_output)
 
