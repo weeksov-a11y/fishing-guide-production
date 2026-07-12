@@ -382,12 +382,13 @@ if active_water_body and lat and lon:
             w_col3.metric("💨 Wind", f"{current['wind_speed_10m']} mph")
             w_col4.metric("☁️ Sky", cloud_word)
 
-        with tab_hydro: st.info(live_gauge_data)
+        with tab_hydro: 
+            st.info(live_gauge_data)
 
-                with tab_strategy:
+        with tab_strategy:
             if execute_crew:
                 with st.spinner("🤖 Formulating tactical operations..."):
-                    # 🧠 Smart Fallback Core: Formats dynamic instructions if the user opts for "Let AI Agents Decide"
+                    # 🧠 Smart AI Fallbacks for the Survey Controls
                     selected_clarity = "dynamically determine water clarity based on recent rain/wind telemetry" if water_clarity == "🤖 Let AI Agents Decide" else water_clarity
                     selected_cover = "predict high-probability structure zones for this water body type" if cover_type == "🤖 Let AI Agents Decide" else f"focus around {cover_type}"
                     selected_spawn = f"automatically calculate the exact biological lifecycle phase for {target_fish} using the current month ({datetime.now().strftime('%B')}), location climate, and water temperature vectors" if spawn_phase == "🤖 Let AI Agents Decide" else f"utilize the {spawn_phase} lifecycle framework"
@@ -395,7 +396,6 @@ if active_water_body and lat and lon:
 
                     water_context = f"the specific body of water named {active_water_body} in {detected_state}."
                     
-                    # Kickoff the Crew with automated logic instructions built right in
                     result = FishingAgentApp().crew().kickoff(inputs={
                         'target_fish': target_fish, 
                         'environment': f"{water_context} holding active targets. Your primary directive is to {selected_spawn}, optimize hot spots targeting areas to {selected_cover} under a setting of {selected_style}.", 
@@ -407,13 +407,15 @@ if active_water_body and lat and lon:
                         'water_clarity': selected_clarity
                     })
                     st.session_state.current_raw_output = result.raw if hasattr(result, 'raw') else str(result)
-
+            
             if "current_raw_output" in st.session_state:
                 st.markdown(st.session_state.current_raw_output.split("### 🎣 Tactical Strategy Plan")[1].strip() if "### 🎣 Tactical Strategy Plan" in st.session_state.current_raw_output else st.session_state.current_raw_output)
 
         with tab_rules:
             if "current_raw_output" in st.session_state and "### 🎣 Tactical Strategy Plan" in st.session_state.current_raw_output:
                 st.markdown(st.session_state.current_raw_output.split("### 🎣 Tactical Strategy Plan")[0].replace("### 🚨 Regional Legal Compliance Guardrails & Location Suggestions", "").strip())
-            else: st.warning(f"Verify rules via your regional {agency_name} portal.")
+            else: 
+                st.warning(f"Verify rules via your regional {agency_name} portal.")
 
-    except Exception as err: st.error(f"Telemetry stream parsing failed: {err}")
+    except Exception as err: 
+        st.error(f"Telemetry stream parsing failed: {err}")
