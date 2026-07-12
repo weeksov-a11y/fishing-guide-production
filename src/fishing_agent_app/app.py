@@ -372,9 +372,6 @@ with st.expander("🔬 Fine-Tune Algorithmic Factor Controls", expanded=True):
             horizontal=True
         )
 
-# Update clarity estimate variable to use the user's manual eye observation
-clarity_estimate = water_clarity
-
 # =====================================================================
 # 🚀 STEP 5: RUN COMPILATION ENGINE & RENDER DASHBOARD UI
 # =====================================================================
@@ -406,8 +403,11 @@ if lat and lon:
             cloud_word = "Clear/Sunny" if current['cloud_cover'] < 20 else "Partially Cloudy" if current['cloud_cover'] < 60 else "Overcast"
             
             recent_rain = sum(weather['hourly'].get('precipitation', [0.0])[-12:])
-            if not water_clarity:  # Fallback to automated if manual isn't parsed
+            if water_clarity:
+                clarity_estimate = water_clarity
+            else:
                 clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility"
+            
             estimated_water_temp = (0.7 * (sum(weather['hourly']['temperature_2m'][:72]) / 72)) + (0.3 * current['temperature_2m'])
             current_air_temp = current['temperature_2m']
 
