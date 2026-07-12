@@ -144,8 +144,9 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
             lat = 46.9844   # Lake Kapowsin Center
             lon = -122.2255  
             location_name = "Tacoma, WA"
-            detected_state = "Washington"  # Explicitly force state variable reset
-            input_state = "Washington"     # Protect the species catalog selection
+            base_anchor_city = "Tacoma, WA"  # Force base anchor reset for the Scout Fingerprint
+            detected_state = "Washington"    # Explicitly force state variable reset
+            input_state = "Washington"       # Protect the species catalog selection
             st.sidebar.warning("📡 Cell tower proxy detected. Restoring local Pacific Northwest coordinates.")
         else:
             lat = raw_lat
@@ -156,17 +157,22 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
                 city = address.get('city', address.get('town', address.get('village', 'Unknown Area')))
                 state = address.get('state', 'Washington')
                 location_name = f"{city}, {state}"
+                base_anchor_city = f"{city}, {state}"
+                detected_state = state
+                input_state = state
             except Exception:
                 location_name = "Tacoma, WA"
+                base_anchor_city = "Tacoma, WA"
+                detected_state = "Washington"
+                input_state = "Washington"
             
         active_water_body = "Current GPS Location"
         water_context = f"the exact water body coordinates at GPS location {lat:.4f}, {lon:.4f} near {location_name}."
         display_summary = f"🎯 Universal Position Locked: **{location_name}** ({lat:.4f}, {lon:.4f})"
-        base_anchor_city = location_name
         st.success("🔒 Satellite Handshake Verified")
     else:
         st.write("⏳ *Awaiting satellite link activation click above...*")
-        st.success("🔒 Satellite Handshake Verified")
+
 
 elif routing_mode == "📝 Enter a Specific Water Body By Name":
     user_water = st.text_input("📝 Type the name of the lake, river, or Marine Area:", value="Puyallup River")
