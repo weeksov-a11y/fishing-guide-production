@@ -293,12 +293,24 @@ if routing_mode in ["🔍 Suggest Local Hotspots", "🛰️ Use My Live GPS Coor
             except Exception:
                 pass
 
+    # Grab the newly compiled list or keep it empty if it hasn't finished loading yet
     dropdown_options = st.session_state.scouted_lakes_dict.get(env_choice, [])
-    if not dropdown_options:
-        dropdown_options = ["Spanaway Lake", "American Lake", "Lake Kapowsin"] if env_choice == "Freshwater" else ["Marine Area 11 (Tacoma)", "Marine Area 13 (Olympia)", "Point Defiance Pier"]
+    
+    # 🧼 CLEAN RESET PATTERN: Inject an empty option block at index 0 so it starts blank 
+    # instead of locking onto a stale default placeholder lake
+    clean_options = [""] + [spot for spot in dropdown_options if spot.strip()]
 
-    selected_suggested = st.selectbox("🎯 Tap to select one of your local suggested hotspots:", options=dropdown_options, key=f"sb_hotspots_{routing_mode}")
-    active_water_body = selected_suggested
+    selected_suggested = st.selectbox(
+        "🎯 Tap to select one of your local suggested hotspots:", 
+        options=clean_options, 
+        index=0,  # Forces it to point directly to the blank row on page refreshes
+        key=f"sb_hotspots_{routing_mode}"
+    )
+    
+    # Only assign the active choice if the user actually selects an option from the list
+    if selected_suggested and selected_suggested != "":
+        active_water_body = selected_suggested
+
 
 # =====================================================================
 # 🧭 RESOLVE TARGET COORDINATES (GEOLOCATION INTERCEPT PROCESSORS)
