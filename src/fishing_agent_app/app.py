@@ -24,9 +24,9 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# Route AI Scouting Engine through Groq's fast tier with explicit fallback injection
+# Route AI Scouting Engine through Groq's larger 70b capacity tier to balance free token limits
 gemini_scout_model = LLM(
-    model="groq/llama-3.1-8b-instant",
+    model="groq/llama3-70b-8192",  # 🚀 Switched from 8b to 70b to tap a separate free limit pool
     temperature=0.1,
     api_key=groq_key_fallback
 )
