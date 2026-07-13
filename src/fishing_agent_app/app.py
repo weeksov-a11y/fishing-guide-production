@@ -400,17 +400,17 @@ if active_water_body and lat and lon:
 
                     water_context = f"the specific body of water named {active_water_body} in {detected_state}."
                     
-                    # 🚀 THE HARDFLASH FORCE INTERCEPTOR:
-                    # Wraps the model selection inside an official LLM class instance to prevent string attribute crashes
+                    # 🚀 FORCE-INTERCEPTOR MATCH:
+                    # Swapped decommissioned Mixtral out for the flagship Llama 3.3 70B Versatile class instance
                     compiled_crew = FishingAgentApp().crew()
                     for agent in compiled_crew.agents:
                         agent.llm = LLM(
-                            model="groq/mixtral-8x7b-32768",
+                            model="groq/llama-3.3-70b-versatile",
                             temperature=0.3,
                             api_key=groq_key_fallback
                         )
                     
-                    # Run the sanitized crew on the Mixtral tier
+                    # Run the sanitized crew on the Llama 3.3 tier
                     result = compiled_crew.kickoff(inputs={
                         'target_fish': target_fish, 
                         'environment': f"{water_context} holding active targets. Your primary directive is to {selected_spawn}, optimize hot spots targeting areas to {selected_cover} under a setting of {selected_style}.", 
