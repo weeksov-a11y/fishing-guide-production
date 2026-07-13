@@ -404,13 +404,13 @@ if active_water_body and lat and lon:
 
                     water_context = f"the specific body of water named {active_water_body} in {detected_state}."
                     
-                    # 🚀 FORCE-OVERRIDE HARDWIRE MATRIX:
-                    # Instantiates the backend crew and explicitly strips hardcoded 8b models from all agents
+                    # 🚀 THE HARDFLASH FORCE INTERCEPTOR:
+                    # Physically overrides any hardcoded variables hidden deep in the background files
                     compiled_crew = FishingAgentApp().crew()
                     for agent in compiled_crew.agents:
                         agent.llm = "groq/mixtral-8x7b-32768"
                     
-                    # Run the sanitized crew
+                    # Run the sanitized crew on the Mixtral tier
                     result = compiled_crew.kickoff(inputs={
                         'target_fish': target_fish, 
                         'environment': f"{water_context} holding active targets. Your primary directive is to {selected_spawn}, optimize hot spots targeting areas to {selected_cover} under a setting of {selected_style}.", 
@@ -422,6 +422,7 @@ if active_water_body and lat and lon:
                         'water_clarity': selected_clarity
                     })
                     st.session_state.current_raw_output = result.raw if hasattr(result, 'raw') else str(result)
+
                     
             if "current_raw_output" in st.session_state:
                 st.markdown(st.session_state.current_raw_output.split("### 🎣 Tactical Strategy Plan")[1].strip() if "### 🎣 Tactical Strategy Plan" in st.session_state.current_raw_output else st.session_state.current_raw_output)
