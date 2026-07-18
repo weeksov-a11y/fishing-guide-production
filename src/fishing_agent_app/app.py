@@ -26,10 +26,13 @@ from fishing_agent_app.crew import FishingAgentApp
 
 # 🛰️ Model A: Route AI Scouting Engine through the 70b tier (Separate Limit Pool)
 gemini_scout_model = LLM(
-    model="groq/llama3-70b-8192",
+    model="groq/llama-3.3-70b-specdec",
     temperature=0.1,
     api_key=groq_key_fallback
 )
+
+# 🎣 Model B: Route the Phase 5 Tactical Strategy Crew through the high-capacity versatile tier
+os.environ["OPENAI_MODEL_NAME"] = "groq/llama-3.3-70b-versatile"
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
 st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="wide")
@@ -240,7 +243,7 @@ if active_water_body and active_water_body != "Current GPS Location":
         pass
 
 # =====================================================================
-# 📋 UPGRADED STEP 4.5: INTERACTIVE PRE-TRIP FACTOR SURVEY
+# 📋 UPGRADED INTERACTIVE SURVEY (WITH AI AUTOMATION FALLBACKS)
 # =====================================================================
 water_clarity, cover_type, spawn_phase, fishing_style = None, None, None, None
 if active_water_body:
@@ -291,12 +294,7 @@ if active_water_body and lat and lon:
             trend = "Rising rapidly" if diff > 0.05 else "Rising slowly" if diff > 0.01 else "Falling rapidly" if diff < -0.05 else "Falling slowly" if diff < -0.01 else "Stable"
             cloud_word = "Clear/Sunny" if current['cloud_cover'] < 20 else "Partially Cloudy" if current['cloud_cover'] < 60 else "Overcast"
             recent_rain = sum(weather['hourly'].get('precipitation', [0.0])[-12:])
-            
-            if water_clarity and water_clarity != "🤖 Let AI Agents Decide":
-                clarity_estimate = water_clarity
-            else:
-                clarity_estimate = "Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility"
-            
+            clarity_estimate = water_clarity if water_clarity else ("Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility")
             estimated_water_temp = (0.7 * (sum(weather['hourly']['temperature_2m'][:72]) / 72)) + (0.3 * current['temperature_2m'])
             current_air_temp = current['temperature_2m']
 
@@ -392,7 +390,6 @@ if active_water_body and lat and lon:
         with tab_strategy:
             if execute_crew:
                 with st.spinner("🤖 Formulating tactical operations..."):
-                    # 🧠 Smart AI Fallbacks for the Survey Controls
                     selected_clarity = "dynamically determine water clarity based on recent rain/wind telemetry" if water_clarity == "🤖 Let AI Agents Decide" else water_clarity
                     selected_cover = "predict high-probability structure zones for this water body type" if cover_type == "🤖 Let AI Agents Decide" else f"focus around {cover_type}"
                     selected_spawn = f"automatically calculate the exact biological lifecycle phase for {target_fish} using the current month ({datetime.now().strftime('%B')}), location climate, and water temperature vectors" if spawn_phase == "🤖 Let AI Agents Decide" else f"utilize the {spawn_phase} lifecycle framework"
@@ -400,17 +397,10 @@ if active_water_body and lat and lon:
 
                     water_context = f"the specific body of water named {active_water_body} in {detected_state}."
                     
-                    # 🚀 FORCE-INTERCEPTOR MATCH:
-                    # Swapped decommissioned Mixtral out for the flagship Llama 3.3 70B Versatile class instance
                     compiled_crew = FishingAgentApp().crew()
                     for agent in compiled_crew.agents:
-                        agent.llm = LLM(
-                            model="groq/llama-3.3-70b-versatile",
-                            temperature=0.3,
-                            api_key=groq_key_fallback
-                        )
+                        agent.llm = "groq/llama-3.3-70b-versatile"
                     
-                    # Run the sanitized crew on the Llama 3.3 tier
                     result = compiled_crew.kickoff(inputs={
                         'target_fish': target_fish, 
                         'environment': f"{water_context} holding active targets. Your primary directive is to {selected_spawn}, optimize hot spots targeting areas to {selected_cover} under a setting of {selected_style}.", 
@@ -422,7 +412,7 @@ if active_water_body and lat and lon:
                         'water_clarity': selected_clarity
                     })
                     st.session_state.current_raw_output = result.raw if hasattr(result, 'raw') else str(result)
-            
+                    
             if "current_raw_output" in st.session_state:
                 st.markdown(st.session_state.current_raw_output.split("### 🎣 Tactical Strategy Plan")[1].strip() if "### 🎣 Tactical Strategy Plan" in st.session_state.current_raw_output else st.session_state.current_raw_output)
 
