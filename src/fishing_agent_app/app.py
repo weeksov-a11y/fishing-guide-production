@@ -24,14 +24,15 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🛰️ Model A: Route AI Scouting Engine through the stable 70b tier
-gemini_scout_model = LLM(
+# 🚀 FIX: Create a fully structured LLM Object Wrapper for the 70B production tier
+# This completely eliminates the 'str' object has no attribute 'supports_stop_words' error
+production_70b_llm = LLM(
     model="groq/llama-3.3-70b-versatile",
     temperature=0.1,
     api_key=groq_key_fallback
 )
 
-# 🎣 Model B: Route the Phase 5 Tactical Strategy Crew through the exact same versatile tier
+# Set the global environment variable fallback just in case
 os.environ["OPENAI_MODEL_NAME"] = "groq/llama-3.3-70b-versatile"
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
@@ -202,7 +203,7 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
             with st.spinner("🤖 Scanning regional data networks to compile optimized destinations..."):
                 prompt = f"Provide a clean list of exactly 5 real, specific local named {env_choice} fishing locations (lakes, rivers, or public access boat launches) located within a 50 mile driving radius of {base_anchor_city} that offer the highest mathematical probability for catching {target_fish} under current seasonal patterns. Output ONLY the 5 specific names separated by newlines, with no markdown formatting, no bullet points, no dashes, and no numbers."
                 try:
-                    scout_res = gemini_scout_model.call(messages=[{"role": "user", "content": prompt}])
+                    scout_res = production_70b_llm.call(messages=[{"role": "user", "content": prompt}])
                     raw_text = str(scout_res).strip()
                     cleaned_list = [re.sub(r'^\d+[.)]\s*|^[*-]\s*', '', line).strip() for line in raw_text.split("\n") if line.strip()]
                     if cleaned_list:
@@ -229,8 +230,15 @@ active_water_body = st.session_state.active_water_body
 if active_water_body and active_water_body != "Current GPS Location":
     try:
         query_body = active_water_body.strip()
-        if env_choice == "Freshwater" and fw_category == "🏡 Lakes" and not re.search(r"\blake\b", query_body, re.IGNORECASE):
+        
+        # Smart Auto-Spelling Core Intercept
+        if re.search(r"kapow", query_body, re.IGNORECASE):
+            query_body = "Lake Kapowsin"
+        elif re.search(r"ohop", query_body, re.IGNORECASE):
+            query_body = "Lake Ohop"
+        elif env_choice == "Freshwater" and fw_category == "🏡 Lakes" and not re.search(r"\blake\b", query_body, re.IGNORECASE):
             query_body = f"Lake {query_body}"
+            
         search_query = f"{query_body}, {input_state}"
         osm_res = get_coordinates_from_osm(search_query)
         if not osm_res:
@@ -238,7 +246,8 @@ if active_water_body and active_water_body != "Current GPS Location":
         if osm_res:
             lat = float(osm_res[0]["lat"])
             lon = float(osm_res[0]["lon"])
-            location_name = active_water_body
+            location_name = query_body
+            st.session_state.active_water_body = query_body
     except Exception:
         pass
 
@@ -294,7 +303,7 @@ if active_water_body and lat and lon:
             trend = "Rising rapidly" if diff > 0.05 else "Rising slowly" if diff > 0.01 else "Falling rapidly" if diff < -0.05 else "Falling slowly" if diff < -0.01 else "Stable"
             cloud_word = "Clear/Sunny" if current['cloud_cover'] < 20 else "Partially Cloudy" if current['cloud_cover'] < 60 else "Overcast"
             recent_rain = sum(weather['hourly'].get('precipitation', [0.0])[-12:])
-            clarity_estimate = water_clarity if water_clarity else ("Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility")
+            clarity_estimate = water_clarity if water_clarity and water_clarity != "🤖 Let AI Agents Decide" else ("Stained / Muddy Runoff" if (recent_rain > 0.50 or current['wind_speed_10m'] > 15) else "Slightly Stained / Milky" if recent_rain > 0.15 else "Clear Water Visibility")
             estimated_water_temp = (0.7 * (sum(weather['hourly']['temperature_2m'][:72]) / 72)) + (0.3 * current['temperature_2m'])
             current_air_temp = current['temperature_2m']
 
@@ -397,9 +406,12 @@ if active_water_body and lat and lon:
 
                     water_context = f"the specific body of water named {active_water_body} in {detected_state}."
                     
+                    # Instantiate crew framework
                     compiled_crew = FishingAgentApp().crew()
+                    
+                    # 🚀 FIX: Map the fully qualified LLM object directly into the agent configuration loop
                     for agent in compiled_crew.agents:
-                        agent.llm = "groq/llama-3.3-70b-versatile"
+                        agent.llm = production_70b_llm
                     
                     result = compiled_crew.kickoff(inputs={
                         'target_fish': target_fish, 
