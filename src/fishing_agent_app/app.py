@@ -24,14 +24,14 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🛰️ Model A: Route AI Scouting Engine through the 70b tier (Separate Limit Pool)
+# 🛰️ Model A: Route AI Scouting Engine through the stable 70b tier
 gemini_scout_model = LLM(
-    model="groq/llama-3.3-70b-specdec",
+    model="groq/llama-3.3-70b-versatile",
     temperature=0.1,
     api_key=groq_key_fallback
 )
 
-# 🎣 Model B: Route the Phase 5 Tactical Strategy Crew through the high-capacity versatile tier
+# 🎣 Model B: Route the Phase 5 Tactical Strategy Crew through the exact same versatile tier
 os.environ["OPENAI_MODEL_NAME"] = "groq/llama-3.3-70b-versatile"
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
