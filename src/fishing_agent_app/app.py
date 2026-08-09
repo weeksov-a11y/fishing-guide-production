@@ -428,27 +428,81 @@ if lat and lon:
                 longitude=lon,
                 zoom=13,
                 pitch=45
+        # TAB 3: MAPS (GOOGLE HYBRID SATELLITE ENGINE)
+        with tab_maps:
+            st.markdown(f"### 🛰️ Interactive Structural Grid: {active_water_body}")
+            
+            # Reset map center when switching lakes
+            if "map_view" not in st.session_state or st.session_state.get("last_water_body") != active_water_body:
+                st.session_state.map_view = {"center": [lat, lon], "zoom": 14}
+                st.session_state.last_water_body = active_water_body
+            else:
+                st.session_state.map_view["center"] = [lat, lon]
+
+            # Create Folium Map centered on the water body
+            m = folium.Map(
+                location=st.session_state.map_view["center"], 
+                zoom_start=st.session_state.map_view["zoom"]
             )
 
-            # PyDeck Scatterplot Layer
-            scatter_layer = pdk.Layer(
-                "ScatterplotLayer",
-                data=df_map,
-                get_position="[lon, lat]",
-                get_color="color",
-                get_radius="radius",
-                pickable=True
-            )
+            # 🗺️ LAYER 1: Google Hybrid Imagery (Satellite + Roads/Labels)
+            folium.TileLayer(
+                tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+                attr="Google Hybrid Imagery",
+                name="Google Satellite Hybrid",
+                overlay=False,
+                control=True
+            ).add_to(m)
 
-            st.pydeck_chart(
-                pdk.Deck(
-                    map_provider="carto",
-                    map_style="dark",  # Sleek modern dark mode vector map
-                    initial_view_state=view_state,
-                    layers=[scatter_layer],
-                    tooltip={"text": "{label}"}
-                ),
-                use_container_width=True
+            # ⛰️ LAYER 2: OpenTopoMap
+            folium.TileLayer(
+                tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+                attr="OpenTopoMap Contributors",
+                name="Topographic Terrain Model",
+                overlay=False,
+                control=True
+            ).add_to(m)
+
+            # 🏙️ LAYER 3: Street Map
+            folium.TileLayer(
+                tiles="OpenStreetMap",
+                name="Standard Navigation Roadmap",
+                overlay=False,
+                control=True
+            ).add_to(m)
+
+            # Clean Target Marker (Red Pin for Target Zone)
+            folium.Marker(
+                location=[lat, lon],
+                popup=f"🎯 Target Zone: {active_water_body}",
+                icon=folium.Icon(color='red', icon='crosshairs', prefix='fa')
+            ).add_to(m)
+
+            # Render saved catch log pins (Blue Pins)
+            try:
+                conn = sqlite3.connect(DB_FILE)
+                saved_catches = pd.read_sql_query("SELECT * FROM catch_log", conn)
+                conn.close()
+                for _, row in saved_catches.iterrows():
+                    folium.Marker(
+                        location=[row['latitude'], row['longitude']],
+                        popup=f"🎣 {row['species']} ({row['weight']} lbs)",
+                        icon=folium.Icon(color='blue', icon='fish', prefix='fa')
+                    ).add_to(m)
+            except Exception:
+                pass
+
+            # Add layer control and tap coordinates
+            folium.LayerControl(position="topright", collapsed=False).add_to(m)
+            m.add_child(folium.LatLngPopup())
+
+            # Render in Streamlit
+            st_folium(
+                m, 
+                width=750, 
+                height=450, 
+                key=f"structural_grid_{lat}_{lon}",
+                returned_objects=["last_clicked"]
             )
 
             st.markdown("---")
