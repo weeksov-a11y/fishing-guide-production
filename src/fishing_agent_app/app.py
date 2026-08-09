@@ -395,21 +395,16 @@ if lat and lon:
             else:
                 st.session_state.map_view["center"] = [lat, lon]
 
+            # 🛰️ Force Google Hybrid Satellite as the DEFAULT Base Layer
             m = folium.Map(
                 location=st.session_state.map_view["center"], 
-                zoom_start=st.session_state.map_view["zoom"]
-            )
-
-            # 🗺️ LAYER 1: Google Hybrid Imagery
-            folium.TileLayer(
+                zoom_start=st.session_state.map_view["zoom"],
                 tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
                 attr="Google Hybrid Imagery",
-                name="Google Satellite Hybrid",
-                overlay=False,
-                control=True
-            ).add_to(m)
+                name="Google Satellite Hybrid"
+            )
 
-            # ⛰️ LAYER 2: OpenTopoMap
+            # ⛰️ Alternate Layer 1: OpenTopoMap
             folium.TileLayer(
                 tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
                 attr="OpenTopoMap Contributors",
@@ -418,7 +413,7 @@ if lat and lon:
                 control=True
             ).add_to(m)
 
-            # 🏙️ LAYER 3: Street Map
+            # 🏙️ Alternate Layer 2: Street Map
             folium.TileLayer(
                 tiles="OpenStreetMap",
                 name="Standard Navigation Roadmap",
@@ -426,7 +421,7 @@ if lat and lon:
                 control=True
             ).add_to(m)
 
-            # Clean Target Marker (Red Pin for Main Zone Target)
+            # Target Marker (Red Pin for Main Zone Target)
             folium.Marker(
                 location=[lat, lon],
                 popup=f"🎯 Target Zone: {active_water_body}",
