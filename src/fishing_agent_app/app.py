@@ -24,15 +24,13 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🚀 FIX: Create a fully structured LLM Object Wrapper for the 70B production tier
-# This completely eliminates the 'str' object has no attribute 'supports_stop_words' error
+# 🚀 Structured LLM Object Wrapper for 70B Versatile Tier
 production_70b_llm = LLM(
     model="groq/llama-3.3-70b-versatile",
     temperature=0.1,
     api_key=groq_key_fallback
 )
 
-# Set the global environment variable fallback just in case
 os.environ["OPENAI_MODEL_NAME"] = "groq/llama-3.3-70b-versatile"
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
@@ -98,19 +96,18 @@ STATE_DICTIONARY = {
     "mn": "Minnesota", "oh": "Ohio", "wi": "Wisconsin", "ga": "Georgia"
 }
 
-# Initialize track matrix values securely in state memory logs
 if "scouted_lakes_options" not in st.session_state:
     st.session_state.scouted_lakes_options = []
 if "active_water_body" not in st.session_state:
     st.session_state.active_water_body = ""
 
 # =====================================================================
-# 🛰️ STEP 1: POSITION STREAM (THE ANCHOR)
+# 🛰️ STEP 1: POSITION & LOCATION ROUTING MODULE
 # =====================================================================
 st.subheader("📡 Step 1: Destination Routing Mode")
 routing_mode = st.radio(
     "Set your search anchor method:",
-    options=["🛰️ Use My Live GPS Coordinates", "📝 Enter a Specific Water Body By Name"],
+    options=["🛰️ Use My Live GPS Coordinates", "📍 Enter a Location / City / Water Body"],
     horizontal=True
 )
 
@@ -131,31 +128,40 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
             state = address.get('state', 'Washington')
             location_name = f"{city}, {state}"
             base_anchor_city = f"{city}, {state}"
-            detected_state = state
-            input_state = state
+            detected_state, input_state = state, state
         except Exception:
             location_name = "Auburn, WA"
             base_anchor_city = "Auburn, WA"
         st.success(f"🎯 Locked Position: **{location_name}** ({lat:.4f}, {lon:.4f})")
     else:
-        st.write("⏳ *Awaiting satellite link activation stream click...*")
+        st.write("⏳ *Awaiting satellite link activation...*")
 
-elif routing_mode == "📝 Enter a Specific Water Body By Name":
-    user_water = st.text_input("📝 Type the name of the water body:")
-    manual_city = st.text_input("📍 Closest Base City & State (e.g. Auburn, WA):", value="Auburn, WA")
-    location_name = manual_city
-    base_anchor_city = manual_city
+elif routing_mode == "📍 Enter a Location / City / Water Body":
+    user_location = st.text_input("📍 Type a City, State, ZIP, or specific Water Body (e.g. 'Tacoma, WA' or 'Lake Kapowsin'):", value="Auburn, WA")
     
-    if user_water.strip():
-        st.session_state.active_water_body = user_water.strip()
-    
-    if manual_city:
-        state_match = re.search(r",\s*([A-Za-z\s]+)$", manual_city)
-        input_state = state_match.group(1).strip() if state_match else manual_city
-        clean_state_key = input_state.strip().lower()
-        if clean_state_key in STATE_DICTIONARY:
-            input_state = STATE_DICTIONARY[clean_state_key]
-        detected_state = input_state
+    if user_location.strip():
+        base_anchor_city = user_location.strip()
+        
+        # Geocode the location directly
+        osm_res = get_coordinates_from_osm(user_location.strip())
+        if osm_res:
+            lat = float(osm_res[0]["lat"])
+            lon = float(osm_res[0]["lon"])
+            location_name = user_location.strip()
+            st.session_state.active_water_body = user_location.strip()
+            
+            # Detect state
+            rev_res = get_address_from_gps(lat, lon)
+            address = rev_res.get('address', {})
+            detected_state = address.get('state', 'Washington')
+            input_state = detected_state
+            st.success(f"🎯 Position Resolved: **{location_name}** ({lat:.4f}, {lon:.4f})")
+
+# Parse state fallback
+clean_state_key = input_state.strip().lower()
+if clean_state_key in STATE_DICTIONARY:
+    input_state = STATE_DICTIONARY[clean_state_key]
+    detected_state = input_state
 
 # =====================================================================
 # 🎨 STEP 2, 3 & 4: CONFIGURATION MENUS
@@ -188,50 +194,41 @@ else:
 target_fish = st.pills("Choose target profile:", options=species_options, default=species_options[0] if species_options else "", label_visibility="collapsed")
 
 # =====================================================================
-# 🔍 PHASE 1 ENGINE: CONDITIONAL WATER BODY GENERATION
+# 🔍 PHASE 1 ENGINE: REGIONAL SCOUTING ENGINE
 # =====================================================================
-if routing_mode == "🛰️ Use My Live GPS Coordinates":
-    st.markdown("---")
-    st.subheader("🔍 Phase 1: Scout Regional Hotspots")
-    st.info("Formulate target options based on your exact satellite positioning metrics and active biological profiles.")
+st.markdown("---")
+st.subheader("🔍 Phase 1: Scout Regional Hotspots (Optional)")
+st.info("Find top rated water bodies nearby, or proceed directly using your anchor location.")
 
-    if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_container_width=True):
-        if not base_anchor_city and lat and lon:
-            base_anchor_city = f"{lat}, {lon}"
-            
-        if base_anchor_city:
-            with st.spinner("🤖 Scanning regional data networks to compile optimized destinations..."):
-                prompt = f"Provide a clean list of exactly 5 real, specific local named {env_choice} fishing locations (lakes, rivers, or public access boat launches) located within a 50 mile driving radius of {base_anchor_city} that offer the highest mathematical probability for catching {target_fish} under current seasonal patterns. Output ONLY the 5 specific names separated by newlines, with no markdown formatting, no bullet points, no dashes, and no numbers."
-                try:
-                    scout_res = production_70b_llm.call(messages=[{"role": "user", "content": prompt}])
-                    raw_text = str(scout_res).strip()
-                    cleaned_list = [re.sub(r'^\d+[.)]\s*|^[*-]\s*', '', line).strip() for line in raw_text.split("\n") if line.strip()]
-                    if cleaned_list:
-                        st.session_state.scouted_lakes_options = cleaned_list[:5]
-                except Exception as e:
-                    st.error(f"Scouting Engine update interrupted: {e}")
+if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_container_width=True):
+    search_anchor = base_anchor_city if base_anchor_city else f"{lat}, {lon}"
+    if search_anchor:
+        with st.spinner("🤖 Scanning regional data networks to compile optimized destinations..."):
+            prompt = f"Provide a clean list of exactly 5 real, specific local named {env_choice} fishing locations (lakes, rivers, or public access boat launches) located within a 50 mile driving radius of {search_anchor} that offer the highest mathematical probability for catching {target_fish}. Output ONLY the 5 specific names separated by newlines, with no markdown formatting, no bullet points, no dashes, and no numbers."
+            try:
+                scout_res = production_70b_llm.call(messages=[{"role": "user", "content": prompt}])
+                raw_text = str(scout_res).strip()
+                cleaned_list = [re.sub(r'^\d+[.)]\s*|^[*-]\s*', '', line).strip() for line in raw_text.split("\n") if line.strip()]
+                if cleaned_list:
+                    st.session_state.scouted_lakes_options = cleaned_list[:5]
+            except Exception as e:
+                st.error(f"Scouting Engine update interrupted: {e}")
 
-    if st.session_state.scouted_lakes_options:
-        selected_suggested = st.selectbox(
-            "🎯 Select your targeted destination from the scouted hotspots:",
-            options=[""] + st.session_state.scouted_lakes_options,
-            index=0
-        )
-        if selected_suggested and selected_suggested != "":
-            st.session_state.active_water_body = selected_suggested
-    else:
-        st.write("⏳ *Click the Scout button above to dynamically populate nearby hotspots.*")
-        if lat and lon and not st.session_state.active_water_body:
-            st.session_state.active_water_body = "Current GPS Location"
+if st.session_state.scouted_lakes_options:
+    selected_suggested = st.selectbox(
+        "🎯 Select a scouted hotspot to refine your target (optional):",
+        options=["(Use Main Anchor Location)"] + st.session_state.scouted_lakes_options,
+        index=0
+    )
+    if selected_suggested and selected_suggested != "(Use Main Anchor Location)":
+        st.session_state.active_water_body = selected_suggested
 
-# Resolve and assign tracking markers safely across parameters
-active_water_body = st.session_state.active_water_body
+active_water_body = st.session_state.active_water_body if st.session_state.active_water_body else location_name
 
-if active_water_body and active_water_body != "Current GPS Location":
+# Resolve coordinates if a specific scouted lake was picked
+if active_water_body and active_water_body != location_name:
     try:
         query_body = active_water_body.strip()
-        
-        # Smart Auto-Spelling Core Intercept
         if re.search(r"kapow", query_body, re.IGNORECASE):
             query_body = "Lake Kapowsin"
         elif re.search(r"ohop", query_body, re.IGNORECASE):
@@ -246,49 +243,32 @@ if active_water_body and active_water_body != "Current GPS Location":
         if osm_res:
             lat = float(osm_res[0]["lat"])
             lon = float(osm_res[0]["lon"])
-            location_name = query_body
-            st.session_state.active_water_body = query_body
+            active_water_body = query_body
     except Exception:
         pass
 
 # =====================================================================
-# 📋 UPGRADED INTERACTIVE SURVEY (WITH AI AUTOMATION FALLBACKS)
+# 📋 STEP 4.5: MICRO-TARGETING SURVEY FACTORS
 # =====================================================================
 water_clarity, cover_type, spawn_phase, fishing_style = None, None, None, None
-if active_water_body:
+if lat and lon:
     st.markdown("---")
     st.markdown("### 🛠️ Step 4.5: Micro-Targeting Survey Factors")
     with st.expander("🔬 Fine-Tune Algorithmic Factor Controls", expanded=True):
         s_col1, s_col2 = st.columns(2)
         with s_col1:
-            water_clarity = st.radio(
-                "💧 Current Water Clarity Observation:", 
-                options=["🤖 Let AI Agents Decide", "Clear Water Visibility", "Slightly Stained / Milky", "Stained / Muddy Runoff"], 
-                horizontal=True
-            )
-            cover_type = st.radio(
-                "🌿 Dominant Visible Structure/Cover:", 
-                options=["🤖 Let AI Agents Decide", "Submerged Timber/Logs", "Heavy Vegetation/Lily Pads", "Rocky Drop-offs & Riprap", "Docks & Structural Pilings"], 
-                horizontal=True
-            )
+            water_clarity = st.radio("💧 Current Water Clarity Observation:", options=["🤖 Let AI Agents Decide", "Clear Water Visibility", "Slightly Stained / Milky", "Stained / Muddy Runoff"], horizontal=True)
+            cover_type = st.radio("🌿 Dominant Visible Structure/Cover:", options=["🤖 Let AI Agents Decide", "Submerged Timber/Logs", "Heavy Vegetation/Lily Pads", "Rocky Drop-offs & Riprap", "Docks & Structural Pilings"], horizontal=True)
         with s_col2:
-            spawn_phase = st.radio(
-                "🐟 Lifecycle Breeding Target Stage:", 
-                options=["🤖 Let AI Agents Decide", "Deep Winter Staging", "Pre-Spawn Staging Flocks", "Shallow Spawning Beds", "Summer Post-Spawn Patterns"], 
-                horizontal=True
-            )
-            fishing_style = st.radio(
-                "👟 Mobility / Angler Framework:", 
-                options=["🤖 Let AI Agents Decide", "Foot / Shoreline Angler", "Power Boat / Deep Hull", "Kayak / Stealth Shallow"], 
-                horizontal=True
-            )
+            spawn_phase = st.radio("🐟 Lifecycle Breeding Target Stage:", options=["🤖 Let AI Agents Decide", "Deep Winter Staging", "Pre-Spawn Staging Flocks", "Shallow Spawning Beds", "Summer Post-Spawn Patterns"], horizontal=True)
+            fishing_style = st.radio("👟 Mobility / Angler Framework:", options=["🤖 Let AI Agents Decide", "Foot / Shoreline Angler", "Power Boat / Deep Hull", "Kayak / Stealth Shallow"], horizontal=True)
 
 # =====================================================================
-# 🚀 STEP 5: RUN COMPILATION ENGINE & RENDER DASHBOARD UI
+# 🚀 STEP 5: RUN COMPILATION ENGINE & RENDER DASHBOARD UI (3 TABS)
 # =====================================================================
-if active_water_body and lat and lon:
+if lat and lon:
     st.markdown("---")
-    st.subheader("⚡ Step 5: Run Tactical Analysis")
+    st.subheader("⚡ Step 5: Dashboard & Strategy Analysis")
     execute_crew = st.button("🚀 Generate Tactical Strategy Plan", type="primary", use_container_width=True)
 
     try:
@@ -329,6 +309,7 @@ if active_water_body and lat and lon:
         minor_end = "6:00 PM" if current['cloud_cover'] > 50 else "7:30 PM"
         bite_windows_text = f"🟢 **Major Peak:** {major_start} - {major_end} | 🟡 **Minor Window:** {minor_start} - {minor_end}"
 
+        # Render top bite score card
         st.markdown(f"""
             <style>
                 .bite-card {{ background-color: #1e293b; border-radius: 12px; padding: 20px; border-left: 6px solid {card_border}; margin-bottom: 20px; }}
@@ -336,7 +317,7 @@ if active_water_body and lat and lon:
                 .window-text {{ color: #e2e8f0; font-size: 16px; margin-top: 10px; font-family: sans-serif; }}
             </style>
             <div class="bite-card">
-                <span style="color: #94a3b8; font-size: 14px; font-weight: bold;">Live Tactical Analytics</span>
+                <span style="color: #94a3b8; font-size: 14px; font-weight: bold;">Live Tactical Analytics ({active_water_body})</span>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
                     <div class="bite-score">{bite_score}%</div>
                     <div style="font-weight: bold; color: {score_color};">{rating_text}</div>
@@ -345,58 +326,13 @@ if active_water_body and lat and lon:
             </div>
         """, unsafe_allow_html=True)
 
-        m_col1, m_col2 = st.columns([2, 1])
-        with m_col1:
-            st.markdown(f"### 🛰️ Interactive Structural Grid: {active_water_body}")
-            if "map_view" not in st.session_state or st.session_state.get("last_water_body") != active_water_body:
-                st.session_state.map_view = {"center": [lat, lon], "zoom": 14}
-                st.session_state.last_water_body = active_water_body
-            else:
-                st.session_state.map_view["center"] = [lat, lon]
+        # =====================================================================
+        # 🗂️ THE 3 MASTER DASHBOARD TABS
+        # =====================================================================
+        tab_strat, tab_telemetry, tab_maps = st.tabs(["🎣 Fishing Strategy", "🌦️ Weather & Stats", "🗺️ Maps"])
 
-            m = folium.Map(location=st.session_state.map_view["center"], zoom_start=st.session_state.map_view["zoom"])
-            folium.TileLayer(tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", attr="Google Hybrid Imagery", name="Google Satellite Hybrid", overlay=False, control=True).add_to(m)
-            folium.TileLayer(tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", attr="OpenTopoMap Contributors", name="Topographic Terrain Model", overlay=False, control=True).add_to(m)
-            folium.TileLayer(tiles="OpenStreetMap", name="Standard Navigation Roadmap", overlay=False, control=True).add_to(m)
-            
-            folium.LayerControl(position="topright", collapsed=False).add_to(m)
-            m.add_child(folium.LatLngPopup())
-            map_data = st_folium(m, width=750, height=450, key=f"structural_grid_{lat}_{lon}", returned_objects=["last_clicked"])
-
-        st.markdown(f"### 🚨 Regional Legal Compliance Portal ({detected_state})")
-        regulation_links = {"Washington": "https://wdfw.wa.gov/fishing/regulations", "Oregon": "https://myodfw.com/fishing/regulations", "Texas": "https://tpwd.texas.gov/regulations/outdoor-annual/fishing/", "Pennsylvania": "https://www.fishandboat.com/Fish/Regulations/Pages/default.aspx"}
-        pamphlet_url = regulation_links.get(detected_state, "https://www.eregulations.com/")
-        
-        comp_col1, comp_col2 = st.columns([1, 2])
-        with comp_col1:
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.link_button(f"📖 Open Official {detected_state} Fishing Pamphlet", pamphlet_url, use_container_width=True, type="secondary")
-        with comp_col2:
-            st.warning(f"⚠️ **LEGAL NOTICE:** Verify emergency closure mandates on official **{detected_state} Wildlife** portal channels before making camp.")
-
-        st.markdown("---")
-        b_col1, b_col2 = st.columns(2)
-        with b_col1: 
-            clean_lake_name = active_water_body.replace("Lake", "").strip()
-            url_encoded_title = urllib.parse.quote(f"{clean_lake_name} Fishing Chart")
-            universal_chart_url = f"https://fishing-app.gpsnauticalcharts.com/i-boating-fishing-web-app/fishing-marine-charts-navigation.html?title={url_encoded_title}&background=satellite&bmi=3#13.5/{lat:.4f}/{lon:.4f}"
-            st.link_button(f"🌊 Open {clean_lake_name} HD Depth Chart", universal_chart_url, use_container_width=True, type="primary")
-            
-        st.markdown("---")
-        tab_cond, tab_hydro, tab_strategy, tab_rules = st.tabs(["🌦️ Atmosphere", "🌊 Water Gauges", "🎣 Tactical Strategy", "🚨 Game Rules"])
-
-        with tab_cond:
-            st.caption(f"🗺️ Fixed: {lat:.4f}, {lon:.4f} | Context: {location_name}")
-            w_col1, w_col2, w_col3, w_col4 = st.columns(4)
-            w_col1.metric("🌡️ Water Temp", f"{estimated_water_temp:.1f}°F")
-            w_col2.metric("🌤️ Air Temp", f"{current_air_temp:.1f}°F")
-            w_col3.metric("💨 Wind", f"{current['wind_speed_10m']} mph")
-            w_col4.metric("☁️ Sky", cloud_word)
-
-        with tab_hydro: 
-            st.info(live_gauge_data)
-
-        with tab_strategy:
+        # TAB 1: FISHING STRATEGY
+        with tab_strat:
             if execute_crew:
                 with st.spinner("🤖 Formulating tactical operations..."):
                     selected_clarity = "dynamically determine water clarity based on recent rain/wind telemetry" if water_clarity == "🤖 Let AI Agents Decide" else water_clarity
@@ -404,12 +340,9 @@ if active_water_body and lat and lon:
                     selected_spawn = f"automatically calculate the exact biological lifecycle phase for {target_fish} using the current month ({datetime.now().strftime('%B')}), location climate, and water temperature vectors" if spawn_phase == "🤖 Let AI Agents Decide" else f"utilize the {spawn_phase} lifecycle framework"
                     selected_style = "provide general tactical approaches for both shore and watercraft setups" if fishing_style == "🤖 Let AI Agents Decide" else f"tailored for a {fishing_style} approach pattern"
 
-                    water_context = f"the specific body of water named {active_water_body} in {detected_state}."
+                    water_context = f"the area or water body named {active_water_body} in {detected_state}."
                     
-                    # Instantiate crew framework
                     compiled_crew = FishingAgentApp().crew()
-                    
-                    # 🚀 FIX: Map the fully qualified LLM object directly into the agent configuration loop
                     for agent in compiled_crew.agents:
                         agent.llm = production_70b_llm
                     
@@ -427,12 +360,51 @@ if active_water_body and lat and lon:
                     
             if "current_raw_output" in st.session_state:
                 st.markdown(st.session_state.current_raw_output.split("### 🎣 Tactical Strategy Plan")[1].strip() if "### 🎣 Tactical Strategy Plan" in st.session_state.current_raw_output else st.session_state.current_raw_output)
+            else:
+                st.info("👈 Click **'🚀 Generate Tactical Strategy Plan'** above to run AI tactical analysis for this location.")
 
-        with tab_rules:
-            if "current_raw_output" in st.session_state and "### 🎣 Tactical Strategy Plan" in st.session_state.current_raw_output:
-                st.markdown(st.session_state.current_raw_output.split("### 🎣 Tactical Strategy Plan")[0].replace("### 🚨 Regional Legal Compliance Guardrails & Location Suggestions", "").strip())
-            else: 
-                st.warning(f"Verify rules via your regional {agency_name} portal.")
+        # TAB 2: WEATHER & STATS
+        with tab_telemetry:
+            st.caption(f"🗺️ Fixed Anchor: {lat:.4f}, {lon:.4f} | Target Context: {active_water_body}")
+            w_col1, w_col2, w_col3, w_col4 = st.columns(4)
+            w_col1.metric("🌡️ Water Temp", f"{estimated_water_temp:.1f}°F")
+            w_col2.metric("🌤️ Air Temp", f"{current_air_temp:.1f}°F")
+            w_col3.metric("💨 Wind", f"{current['wind_speed_10m']} mph")
+            w_col4.metric("☁️ Sky", cloud_word)
+            
+            st.markdown("---")
+            st.markdown("### 🌊 Real-Time Water Gauges")
+            st.info(live_gauge_data)
+            
+            st.markdown("---")
+            st.markdown(f"### 🚨 Legal Compliance ({detected_state})")
+            regulation_links = {"Washington": "https://wdfw.wa.gov/fishing/regulations", "Oregon": "https://myodfw.com/fishing/regulations", "Texas": "https://tpwd.texas.gov/regulations/outdoor-annual/fishing/", "Pennsylvania": "https://www.fishandboat.com/Fish/Regulations/Pages/default.aspx"}
+            pamphlet_url = regulation_links.get(detected_state, "https://www.eregulations.com/")
+            st.link_button(f"📖 Open Official {detected_state} Fishing Pamphlet", pamphlet_url, type="secondary")
+
+        # TAB 3: MAPS
+        with tab_maps:
+            st.markdown(f"### 🛰️ Interactive Structural Grid: {active_water_body}")
+            if "map_view" not in st.session_state or st.session_state.get("last_water_body") != active_water_body:
+                st.session_state.map_view = {"center": [lat, lon], "zoom": 14}
+                st.session_state.last_water_body = active_water_body
+            else:
+                st.session_state.map_view["center"] = [lat, lon]
+
+            m = folium.Map(location=st.session_state.map_view["center"], zoom_start=st.session_state.map_view["zoom"])
+            folium.TileLayer(tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", attr="Google Hybrid Imagery", name="Google Satellite Hybrid", overlay=False, control=True).add_to(m)
+            folium.TileLayer(tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", attr="OpenTopoMap Contributors", name="Topographic Terrain Model", overlay=False, control=True).add_to(m)
+            folium.TileLayer(tiles="OpenStreetMap", name="Standard Navigation Roadmap", overlay=False, control=True).add_to(m)
+            
+            folium.LayerControl(position="topright", collapsed=False).add_to(m)
+            m.add_child(folium.LatLngPopup())
+            map_data = st_folium(m, width=750, height=450, key=f"structural_grid_{lat}_{lon}", returned_objects=["last_clicked"])
+
+            st.markdown("---")
+            clean_lake_name = active_water_body.replace("Lake", "").strip()
+            url_encoded_title = urllib.parse.quote(f"{clean_lake_name} Fishing Chart")
+            universal_chart_url = f"https://fishing-app.gpsnauticalcharts.com/i-boating-fishing-web-app/fishing-marine-charts-navigation.html?title={url_encoded_title}&background=satellite&bmi=3#13.5/{lat:.4f}/{lon:.4f}"
+            st.link_button(f"🌊 Open {clean_lake_name} HD Depth Chart (i-Boating)", universal_chart_url, use_container_width=True, type="primary")
 
     except Exception as err: 
         st.error(f"Telemetry stream parsing failed: {err}")
