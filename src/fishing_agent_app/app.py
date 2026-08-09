@@ -6,12 +6,11 @@ import urllib.parse
 import re
 import sqlite3
 import pandas as pd
+import pydeck as pdk
 from datetime import datetime
 
 # 🛰️ Native Universal Hardware Geolocation Link
 from streamlit_geolocation import streamlit_geolocation
-import folium
-from streamlit_folium import st_folium
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -382,23 +381,56 @@ if lat and lon:
             pamphlet_url = regulation_links.get(detected_state, "https://www.eregulations.com/")
             st.link_button(f"📖 Open Official {detected_state} Fishing Pamphlet", pamphlet_url, type="secondary")
 
-        # TAB 3: MAPS
+        # TAB 3: MAPS (3D WEBGL ENGINE VIA PYDECK)
         with tab_maps:
             st.markdown(f"### 🛰️ Interactive Structural Grid: {active_water_body}")
-            if "map_view" not in st.session_state or st.session_state.get("last_water_body") != active_water_body:
-                st.session_state.map_view = {"center": [lat, lon], "zoom": 14}
-                st.session_state.last_water_body = active_water_body
-            else:
-                st.session_state.map_view["center"] = [lat, lon]
-
-            m = folium.Map(location=st.session_state.map_view["center"], zoom_start=st.session_state.map_view["zoom"])
-            folium.TileLayer(tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", attr="Google Hybrid Imagery", name="Google Satellite Hybrid", overlay=False, control=True).add_to(m)
-            folium.TileLayer(tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", attr="OpenTopoMap Contributors", name="Topographic Terrain Model", overlay=False, control=True).add_to(m)
-            folium.TileLayer(tiles="OpenStreetMap", name="Standard Navigation Roadmap", overlay=False, control=True).add_to(m)
             
-            folium.LayerControl(position="topright", collapsed=False).add_to(m)
-            m.add_child(folium.LatLngPopup())
-            map_data = st_folium(m, width=750, height=450, key=f"structural_grid_{lat}_{lon}", returned_objects=["last_clicked"])
+            # Load user saved catches from database
+            map_points = [{"lat": lat, "lon": lon, "label": f"🎯 Target Zone: {active_water_body}", "color": [34, 197, 94, 220], "radius": 200}]
+            try:
+                conn = sqlite3.connect(DB_FILE)
+                saved_catches = pd.read_sql_query("SELECT * FROM catch_log", conn)
+                conn.close()
+                for _, row in saved_catches.iterrows():
+                    map_points.append({
+                        "lat": row['latitude'],
+                        "lon": row['longitude'],
+                        "label": f"🎣 {row['species']} ({row['weight']} lbs)",
+                        "color": [59, 130, 246, 220],
+                        "radius": 100
+                    })
+            except Exception:
+                pass
+
+            df_map = pd.DataFrame(map_points)
+
+            # PyDeck 3D WebGL View State
+            view_state = pdk.ViewState(
+                latitude=lat,
+                longitude=lon,
+                zoom=13,
+                pitch=45
+            )
+
+            # PyDeck Scatterplot Layer
+            scatter_layer = pdk.Layer(
+                "ScatterplotLayer",
+                data=df_map,
+                get_position="[lon, lat]",
+                get_color="color",
+                get_radius="radius",
+                pickable=True
+            )
+
+            st.pydeck_chart(
+                pdk.Deck(
+                    map_style="mapbox://styles/mapbox/satellite-v9",
+                    initial_view_state=view_state,
+                    layers=[scatter_layer],
+                    tooltip={"text": "{label}"}
+                ),
+                use_container_width=True
+            )
 
             st.markdown("---")
             clean_lake_name = active_water_body.replace("Lake", "").strip()
