@@ -68,9 +68,10 @@ def fetch_cached_weather(lat, lon):
         return None
 
 # =====================================================================
-# 🗄️ DATABASE SYSTEM
+# 🗄️ DATABASE SYSTEM (SQLite Permanent Local Storage)
 # =====================================================================
 DB_FILE = "premium_catches.db"
+
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -88,6 +89,7 @@ def init_db():
     """)
     conn.commit()
     conn.close()
+
 init_db()
 
 STATE_DICTIONARY = {
@@ -142,7 +144,7 @@ elif routing_mode == "📍 Enter a Location / City / Water Body":
     if user_location.strip():
         base_anchor_city = user_location.strip()
         
-        # Geocode the location directly
+        # Geocode location
         osm_res = get_coordinates_from_osm(user_location.strip())
         if osm_res:
             lat = float(osm_res[0]["lat"])
@@ -150,7 +152,6 @@ elif routing_mode == "📍 Enter a Location / City / Water Body":
             location_name = user_location.strip()
             st.session_state.active_water_body = user_location.strip()
             
-            # Detect state
             rev_res = get_address_from_gps(lat, lon)
             address = rev_res.get('address', {})
             detected_state = address.get('state', 'Washington')
@@ -382,24 +383,24 @@ if lat and lon:
             pamphlet_url = regulation_links.get(detected_state, "https://www.eregulations.com/")
             st.link_button(f"📖 Open Official {detected_state} Fishing Pamphlet", pamphlet_url, type="secondary")
 
-        # TAB 3: MAPS (GOOGLE HYBRID SATELLITE ENGINE)
+        # TAB 3: MAPS (GOOGLE HYBRID SATELLITE ENGINE & IN-APP SQLITE LOGGING)
         with tab_maps:
             st.markdown(f"### 🛰️ Interactive Structural Grid: {active_water_body}")
+            st.caption("💡 **Tip:** Tap anywhere on the map below to capture the spot and log a new catch!")
             
-            # Reset map center when switching lakes
+            # Reset map center when switching locations
             if "map_view" not in st.session_state or st.session_state.get("last_water_body") != active_water_body:
                 st.session_state.map_view = {"center": [lat, lon], "zoom": 14}
                 st.session_state.last_water_body = active_water_body
             else:
                 st.session_state.map_view["center"] = [lat, lon]
 
-            # Create Folium Map centered on the water body
             m = folium.Map(
                 location=st.session_state.map_view["center"], 
                 zoom_start=st.session_state.map_view["zoom"]
             )
 
-            # 🗺️ LAYER 1: Google Hybrid Imagery (Satellite + Roads/Labels)
+            # 🗺️ LAYER 1: Google Hybrid Imagery
             folium.TileLayer(
                 tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
                 attr="Google Hybrid Imagery",
@@ -425,33 +426,33 @@ if lat and lon:
                 control=True
             ).add_to(m)
 
-            # Clean Target Marker (Red Pin for Target Zone)
+            # Clean Target Marker (Red Pin for Main Zone Target)
             folium.Marker(
                 location=[lat, lon],
                 popup=f"🎯 Target Zone: {active_water_body}",
                 icon=folium.Icon(color='red', icon='crosshairs', prefix='fa')
             ).add_to(m)
 
-            # Render saved catch log pins (Blue Pins)
+            # Render persistent saved catches from SQLite local DB (Blue Pins)
             try:
                 conn = sqlite3.connect(DB_FILE)
                 saved_catches = pd.read_sql_query("SELECT * FROM catch_log", conn)
                 conn.close()
                 for _, row in saved_catches.iterrows():
+                    notes_display = f"<br>📝 <i>{row['substrate']}</i>" if 'substrate' in row and row['substrate'] else ""
                     folium.Marker(
                         location=[row['latitude'], row['longitude']],
-                        popup=f"🎣 {row['species']} ({row['weight']} lbs)",
+                        popup=f"🎣 <b>{row['species']}</b> ({row['weight']} lbs)<br>📅 {row['timestamp']}{notes_display}",
                         icon=folium.Icon(color='blue', icon='fish', prefix='fa')
                     ).add_to(m)
             except Exception:
-                pass
+                saved_catches = pd.DataFrame()
 
-            # Add layer control and tap coordinates
             folium.LayerControl(position="topright", collapsed=False).add_to(m)
             m.add_child(folium.LatLngPopup())
 
-            # Render in Streamlit
-            st_folium(
+            # Render map and catch click coordinate streams
+            map_data = st_folium(
                 m, 
                 width=750, 
                 height=450, 
@@ -459,11 +460,74 @@ if lat and lon:
                 returned_objects=["last_clicked"]
             )
 
+            # =====================================================================
+            # 📝 IN-APP LOCAL CATCH LOG FORM (WRITES TO SQLITE)
+            # =====================================================================
+            last_click = map_data.get("last_clicked") if map_data else None
+            
+            if last_click:
+                clicked_lat = last_click["lat"]
+                clicked_lon = last_click["lng"]
+                
+                st.markdown("---")
+                st.success(f"📍 **Map Spot Captured!** ({clicked_lat:.4f}, {clicked_lon:.4f})")
+                
+                with st.form("log_catch_form", clear_on_submit=True):
+                    st.markdown("#### 📝 Log Your Catch Details")
+                    
+                    c_col1, c_col2 = st.columns(2)
+                    with c_col1:
+                        log_date = st.date_input("📅 Date Captured", value=datetime.today())
+                        log_time = st.time_input("⏰ Time Captured", value=datetime.now().time())
+                        log_species = st.text_input("🐟 Fish Species", value=target_fish if target_fish else "Crappie")
+                    
+                    with c_col2:
+                        log_weight = st.number_input("⚖️ Weight (lbs)", min_value=0.0, max_value=200.0, value=1.5, step=0.1)
+                        log_notes = st.text_area("📝 Tactical Notes / Lure Used", placeholder="e.g. 1/16oz jig along submerged logs, slow retrieve...")
+
+                    submit_catch = st.form_submit_button("💾 Save Waypoint to Local Database", type="primary", use_container_width=True)
+                    
+                    if submit_catch:
+                        formatted_dt = f"{log_date.strftime('%Y-%m-%d')} {log_time.strftime('%I:%M %p')}"
+                        conn = sqlite3.connect(DB_FILE)
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            INSERT INTO catch_log (timestamp, lake_name, species, weight, latitude, longitude, substrate)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (formatted_dt, active_water_body, log_species, log_weight, clicked_lat, clicked_lon, log_notes))
+                        conn.commit()
+                        conn.close()
+                        st.toast("🎉 Catch logged to local SQLite database! Refreshing map pins...", icon="🎣")
+                        st.rerun()
+
+            # =====================================================================
+            # 📥 BACKUP DOWNLOAD & EXTERNAL DEPTH CHARTS
+            # =====================================================================
             st.markdown("---")
-            clean_lake_name = active_water_body.replace("Lake", "").strip()
-            url_encoded_title = urllib.parse.quote(f"{clean_lake_name} Fishing Chart")
-            universal_chart_url = f"https://fishing-app.gpsnauticalcharts.com/i-boating-fishing-web-app/fishing-marine-charts-navigation.html?title={url_encoded_title}&background=satellite&bmi=3#13.5/{lat:.4f}/{lon:.4f}"
-            st.link_button(f"🌊 Open {clean_lake_name} HD Depth Chart (i-Boating)", universal_chart_url, use_container_width=True, type="primary")
+            b_col1, b_col2 = st.columns(2)
+            
+            with b_col1:
+                clean_lake_name = active_water_body.replace("Lake", "").strip()
+                url_encoded_title = urllib.parse.quote(f"{clean_lake_name} Fishing Chart")
+                universal_chart_url = f"https://fishing-app.gpsnauticalcharts.com/i-boating-fishing-web-app/fishing-marine-charts-navigation.html?title={url_encoded_title}&background=satellite&bmi=3#13.5/{lat:.4f}/{lon:.4f}"
+                st.link_button(f"🌊 Open {clean_lake_name} HD Depth Chart (i-Boating)", universal_chart_url, use_container_width=True, type="primary")
+
+            with b_col2:
+                try:
+                    conn = sqlite3.connect(DB_FILE)
+                    export_df = pd.read_sql_query("SELECT * FROM catch_log", conn)
+                    conn.close()
+                    if not export_df.empty:
+                        csv_data = export_df.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            label="📥 Download Database Copy to Phone (.CSV)",
+                            data=csv_data,
+                            file_name=f"my_fishing_log_{datetime.now().strftime('%Y%m%d')}.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+                except Exception:
+                    pass
 
     except Exception as err: 
         st.error(f"Telemetry stream parsing failed: {err}")
