@@ -443,13 +443,14 @@ if lat and lon:
             except Exception:
                 saved_catches = pd.DataFrame()
 
-            folium.LayerControl(position="topright", collapsed=False).add_to(m)
+            # 🛠️ FIX: Collapse the layer control into a clean icon so it fits mobile screens
+            folium.LayerControl(position="topright", collapsed=True).add_to(m)
             m.add_child(folium.LatLngPopup())
 
             # Render map and catch click coordinate streams
             map_data = st_folium(
                 m, 
-                width=750, 
+                use_container_width=True,
                 height=450, 
                 key=f"structural_grid_{lat}_{lon}",
                 returned_objects=["last_clicked"]
