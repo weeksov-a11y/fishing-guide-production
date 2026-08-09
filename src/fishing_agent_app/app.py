@@ -422,9 +422,28 @@ if lat and lon:
                 pickable=True
             )
 
+                        # PyDeck 3D WebGL View State
+            view_state = pdk.ViewState(
+                latitude=lat,
+                longitude=lon,
+                zoom=13,
+                pitch=45
+            )
+
+            # PyDeck Scatterplot Layer
+            scatter_layer = pdk.Layer(
+                "ScatterplotLayer",
+                data=df_map,
+                get_position="[lon, lat]",
+                get_color="color",
+                get_radius="radius",
+                pickable=True
+            )
+
             st.pydeck_chart(
                 pdk.Deck(
-                    map_style="mapbox://styles/mapbox/satellite-v9",
+                    map_provider="carto",
+                    map_style="dark",  # Sleek modern dark mode vector map
                     initial_view_state=view_state,
                     layers=[scatter_layer],
                     tooltip={"text": "{label}"}
