@@ -443,7 +443,7 @@ if lat and lon:
             except Exception:
                 saved_catches = pd.DataFrame()
 
-            # 🛠️ FIX: Collapse the layer control into a clean icon so it fits mobile screens
+            # 🛠️ Collapse layer control so it fits nicely on mobile screens
             folium.LayerControl(position="topright", collapsed=True).add_to(m)
             m.add_child(folium.LatLngPopup())
 
