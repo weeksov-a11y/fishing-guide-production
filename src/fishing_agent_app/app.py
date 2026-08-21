@@ -24,14 +24,14 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🚀 Structured LLM Object Wrapper for 70B Versatile Tier
+# 🚀 Structured LLM Object Wrapper for 70B Versatile Tier (Fixed Groq Model Identifier)
 production_70b_llm = LLM(
-    model="groq/llama-3.3-70b-versatile",
-    temperature=0.1,
-    api_key=groq_key_fallback
+    model="llama-3.3-70b-versatile",
+    api_key=groq_key_fallback,
+    temperature=0.1
 )
 
-os.environ["OPENAI_MODEL_NAME"] = "groq/llama-3.3-70b-versatile"
+os.environ["OPENAI_MODEL_NAME"] = "llama-3.3-70b-versatile"
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
 st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="wide")
@@ -443,7 +443,7 @@ if lat and lon:
             except Exception:
                 saved_catches = pd.DataFrame()
 
-            # 🛠️ Collapse layer control so it fits nicely on mobile screens
+            # Collapse layer control so it fits nicely on mobile screens
             folium.LayerControl(position="topright", collapsed=True).add_to(m)
             m.add_child(folium.LatLngPopup())
 
