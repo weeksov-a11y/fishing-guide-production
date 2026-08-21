@@ -24,14 +24,15 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🚀 Structured LLM Object Wrapper for 70B Versatile Tier (Fixed Groq Model Identifier)
+# 🚀 Structured LLM Object Wrapper for 70B Versatile Tier (Fixed LiteLLM Provider Routing)
 production_70b_llm = LLM(
-    model="llama-3.3-70b-versatile",
+    model="groq/llama-3.3-70b-versatile",
+    provider="groq",
     api_key=groq_key_fallback,
     temperature=0.1
 )
 
-os.environ["OPENAI_MODEL_NAME"] = "llama-3.3-70b-versatile"
+os.environ["OPENAI_MODEL_NAME"] = "groq/llama-3.3-70b-versatile"
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
 st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="wide")
