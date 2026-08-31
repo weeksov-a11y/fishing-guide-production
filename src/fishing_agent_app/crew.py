@@ -4,15 +4,17 @@ import os
 import streamlit as st
 
 # Check for Groq key in Streamlit secrets
-if "GROQ_API_KEY" in st.secrets:
-    os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+groq_key = st.secrets["GROQ_API_KEY"] if "GROQ_API_KEY" in st.secrets else os.environ.get("GROQ_API_KEY", "")
+os.environ["GROQ_API_KEY"] = groq_key
 
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
-# 🚀 Use Llama 3.1 8B Instant to prevent Groq rate limits during multi-agent runs
+# 🚀 Pass Groq through OpenAI-compatible routing to eliminate model_not_found errors
 groq_llm = LLM(
-    model="groq/llama-3.1-8b-instant",
+    model="openai/llama-3.3-70b-versatile",
+    base_url="https://api.groq.com/openai/v1",
+    api_key=groq_key,
     temperature=0.3
 )
 
