@@ -26,13 +26,13 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🚀 Use Groq's active Llama 3.1 8B Instant model
+# 🚀 Active Groq replacement model following August 2026 deprecation
 production_llm = LLM(
-    model="groq/llama-3.1-8b-instant",
+    model="openai/gpt-oss-20b",
+    base_url="https://api.groq.com/openai/v1",
     api_key=groq_key_fallback,
     temperature=0.1
 )
-
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
 st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="wide")
 st.title("🎣 Mobile Fishing Advisor")
@@ -207,7 +207,7 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": "llama-3.1-8b-instant",
+                "model": "openai/gpt-oss-20b",
                 "messages": [
                     {"role": "system", "content": "You are a raw data generator. You output plain text lists with zero formatting, numbers, or chatter."},
                     {"role": "user", "content": prompt}
