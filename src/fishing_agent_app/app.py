@@ -15,34 +15,31 @@ from streamlit_geolocation import streamlit_geolocation
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-# 🔑 Safely load and propagate API Keys into Environment FIRST
-groq_key_fallback = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
-if groq_key_fallback:
-    os.environ["GROQ_API_KEY"] = groq_key_fallback
+# 🔑 Load the Groq Key from Secrets Vault
+groq_key_fallback = st.secrets["GROQ_API_KEY"] if "GROQ_API_KEY" in st.secrets else os.environ.get("GROQ_API_KEY")
 
+os.environ["GROQ_API_KEY"] = groq_key_fallback if groq_key_fallback else ""
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
-os.environ["OPENAI_MODEL_NAME"] = "groq/llama-3.3-70b-versatile"
 
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🚀 Helper function to instantiate LLM cleanly without invalid 'provider' argument
-def get_groq_llm():
-    return LLM(
-        model="groq/llama-3.3-70b-versatile",
-        api_key=groq_key_fallback,
-        temperature=0.1
-    )
+# 🚀 Robust Groq Model Specification for CrewAI & LiteLLM
+GROQ_MODEL_NAME = "groq/llama-3.3-70b-versatile"
+
+production_70b_llm = LLM(
+    model=GROQ_MODEL_NAME,
+    api_key=groq_key_fallback,
+    temperature=0.1
+)
+
+os.environ["OPENAI_MODEL_NAME"] = GROQ_MODEL_NAME
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
-if os.path.exists(logo_path):
-    st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="wide")
-    st.logo(logo_path)
-else:
-    st.set_page_config(page_title="Global Mobile Fishing Crew", layout="wide")
-
+st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="wide")
 st.title("🎣 Mobile Fishing Advisor")
+st.logo(logo_path)
 
 # =====================================================================
 # ⚡ CENTRAL ANTI-LAG CACHING MATRIX
@@ -52,8 +49,7 @@ def get_coordinates_from_osm(search_query):
     headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
     try:
         url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(search_query)}&countrycodes=us,ca,mx&format=json&limit=1"
-        res = requests.get(url, headers=headers, timeout=5)
-        return res.json() if res.status_code == 200 else []
+        return requests.get(url, headers=headers, timeout=5).json()
     except Exception:
         return []
 
@@ -62,8 +58,7 @@ def get_address_from_gps(lat, lon):
     headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
     try:
         url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
-        res = requests.get(url, headers=headers, timeout=5)
-        return res.json() if res.status_code == 200 else {}
+        return requests.get(url, headers=headers, timeout=5).json()
     except Exception:
         return {}
 
@@ -71,8 +66,7 @@ def get_address_from_gps(lat, lon):
 def fetch_cached_weather(lat, lon):
     try:
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,cloud_cover,surface_pressure,wind_speed_10m&hourly=surface_pressure,precipitation,temperature_2m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto"
-        res = requests.get(url, timeout=5)
-        return res.json() if res.status_code == 200 else None
+        return requests.get(url, timeout=5).json()
     except Exception:
         return None
 
@@ -145,13 +139,14 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
             base_anchor_city = "Auburn, WA"
         st.success(f"🎯 Locked Position: **{location_name}** ({lat:.4f}, {lon:.4f})")
     else:
-        st.info("⏳ *Awaiting satellite link activation... Tap the location prompt above if needed.*")
+        st.write("⏳ *Awaiting satellite link activation...*")
 
 elif routing_mode == "📍 Enter a Location / City / Water Body":
     user_location = st.text_input("📍 Type a City, State, ZIP, or specific Water Body (e.g. 'Tacoma, WA' or 'Lake Kapowsin'):", value="Auburn, WA")
     
     if user_location.strip():
         base_anchor_city = user_location.strip()
+        
         osm_res = get_coordinates_from_osm(user_location.strip())
         if osm_res:
             lat = float(osm_res[0]["lat"])
@@ -165,7 +160,6 @@ elif routing_mode == "📍 Enter a Location / City / Water Body":
             input_state = detected_state
             st.success(f"🎯 Position Resolved: **{location_name}** ({lat:.4f}, {lon:.4f})")
 
-# Parse state fallback
 clean_state_key = input_state.strip().lower()
 if clean_state_key in STATE_DICTIONARY:
     input_state = STATE_DICTIONARY[clean_state_key]
@@ -210,20 +204,27 @@ st.info("Find top rated water bodies nearby, or proceed directly using your anch
 
 if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_container_width=True):
     search_anchor = base_anchor_city if base_anchor_city else f"{lat}, {lon}"
-    if search_anchor and groq_key_fallback:
+    if search_anchor:
         with st.spinner("🤖 Scanning regional data networks to compile optimized destinations..."):
             prompt = f"Provide a clean list of exactly 5 real, specific local named {env_choice} fishing locations (lakes, rivers, or public access boat launches) located within a 50 mile driving radius of {search_anchor} that offer the highest mathematical probability for catching {target_fish}. Output ONLY the 5 specific names separated by newlines, with no markdown formatting, no bullet points, no dashes, and no numbers."
             try:
-                llm = get_groq_llm()
-                scout_res = llm.call(messages=[{"role": "user", "content": prompt}])
+                # Direct API invocation via CrewAI LLM wrapper method
+                scout_res = production_70b_llm.call(messages=[{"role": "user", "content": prompt}])
                 raw_text = str(scout_res).strip()
                 cleaned_list = [re.sub(r'^\d+[.)]\s*|^[*-]\s*', '', line).strip() for line in raw_text.split("\n") if line.strip()]
                 if cleaned_list:
                     st.session_state.scouted_lakes_options = cleaned_list[:5]
             except Exception as e:
-                st.error(f"Scouting Engine update interrupted: {e}")
-    elif not groq_key_fallback:
-        st.error("🔑 GROQ_API_KEY is missing. Add it to Streamlit Secrets or Environment.")
+                # Graceful fallback attempt using groq/llama3-70b-8192 if 3.3 endpoint has account routing restrictions
+                try:
+                    fallback_llm = LLM(model="groq/llama3-70b-8192", api_key=groq_key_fallback, temperature=0.1)
+                    scout_res = fallback_llm.call(messages=[{"role": "user", "content": prompt}])
+                    raw_text = str(scout_res).strip()
+                    cleaned_list = [re.sub(r'^\d+[.)]\s*|^[*-]\s*', '', line).strip() for line in raw_text.split("\n") if line.strip()]
+                    if cleaned_list:
+                        st.session_state.scouted_lakes_options = cleaned_list[:5]
+                except Exception as err2:
+                    st.error(f"Scouting Engine update interrupted: {err2}")
 
 if st.session_state.scouted_lakes_options:
     selected_suggested = st.selectbox(
@@ -236,7 +237,6 @@ if st.session_state.scouted_lakes_options:
 
 active_water_body = st.session_state.active_water_body if st.session_state.active_water_body else location_name
 
-# Resolve coordinates if a specific scouted lake was picked
 if active_water_body and active_water_body != location_name:
     try:
         query_body = active_water_body.strip()
@@ -320,7 +320,6 @@ if lat and lon:
         minor_end = "6:00 PM" if current['cloud_cover'] > 50 else "7:30 PM"
         bite_windows_text = f"🟢 **Major Peak:** {major_start} - {major_end} | 🟡 **Minor Window:** {minor_start} - {minor_end}"
 
-        # Render top bite score card
         st.markdown(f"""
             <style>
                 .bite-card {{ background-color: #1e293b; border-radius: 12px; padding: 20px; border-left: 6px solid {card_border}; margin-bottom: 20px; }}
@@ -337,40 +336,34 @@ if lat and lon:
             </div>
         """, unsafe_allow_html=True)
 
-        # =====================================================================
-        # 🗂️ THE 3 MASTER DASHBOARD TABS
-        # =====================================================================
         tab_strat, tab_telemetry, tab_maps = st.tabs(["🎣 Fishing Strategy", "🌦️ Weather & Stats", "🗺️ Maps"])
 
         # TAB 1: FISHING STRATEGY
         with tab_strat:
             if execute_crew:
-                if not groq_key_fallback:
-                    st.error("🔑 GROQ_API_KEY is missing. Please set it in Streamlit secrets or environment variables.")
-                else:
-                    with st.spinner("🤖 Formulating tactical operations..."):
-                        selected_clarity = "dynamically determine water clarity based on recent rain/wind telemetry" if water_clarity == "🤖 Let AI Agents Decide" else water_clarity
-                        selected_cover = "predict high-probability structure zones for this water body type" if cover_type == "🤖 Let AI Agents Decide" else f"focus around {cover_type}"
-                        selected_spawn = f"automatically calculate the exact biological lifecycle phase for {target_fish} using the current month ({datetime.now().strftime('%B')}), location climate, and water temperature vectors" if spawn_phase == "🤖 Let AI Agents Decide" else f"utilize the {spawn_phase} lifecycle framework"
-                        selected_style = "provide general tactical approaches for both shore and watercraft setups" if fishing_style == "🤖 Let AI Agents Decide" else f"tailored for a {fishing_style} approach pattern"
+                with st.spinner("🤖 Formulating tactical operations..."):
+                    selected_clarity = "dynamically determine water clarity based on recent rain/wind telemetry" if water_clarity == "🤖 Let AI Agents Decide" else water_clarity
+                    selected_cover = "predict high-probability structure zones for this water body type" if cover_type == "🤖 Let AI Agents Decide" else f"focus around {cover_type}"
+                    selected_spawn = f"automatically calculate the exact biological lifecycle phase for {target_fish} using the current month ({datetime.now().strftime('%B')}), location climate, and water temperature vectors" if spawn_phase == "🤖 Let AI Agents Decide" else f"utilize the {spawn_phase} lifecycle framework"
+                    selected_style = "provide general tactical approaches for both shore and watercraft setups" if fishing_style == "🤖 Let AI Agents Decide" else f"tailored for a {fishing_style} approach pattern"
 
-                        water_context = f"the area or water body named {active_water_body} in {detected_state}."
-                        
-                        try:
-                            compiled_crew = FishingAgentApp().crew()
-                            result = compiled_crew.kickoff(inputs={
-                                'target_fish': target_fish, 
-                                'environment': f"{water_context} holding active targets. Your primary directive is to {selected_spawn}, optimize hot spots targeting areas to {selected_cover} under a setting of {selected_style}.", 
-                                'current_state': detected_state, 
-                                'water_temp': f"{estimated_water_temp:.1f}°F", 
-                                'barometric_pressure': trend, 
-                                'cloud_cover': cloud_word, 
-                                'wind_speed': f"{current['wind_speed_10m']} mph", 
-                                'water_clarity': selected_clarity
-                            })
-                            st.session_state.current_raw_output = result.raw if hasattr(result, 'raw') else str(result)
-                        except Exception as crew_err:
-                            st.error(f"CrewAI execution failed: {crew_err}")
+                    water_context = f"the area or water body named {active_water_body} in {detected_state}."
+                    
+                    compiled_crew = FishingAgentApp().crew()
+                    for agent in compiled_crew.agents:
+                        agent.llm = production_70b_llm
+                    
+                    result = compiled_crew.kickoff(inputs={
+                        'target_fish': target_fish, 
+                        'environment': f"{water_context} holding active targets. Your primary directive is to {selected_spawn}, optimize hot spots targeting areas to {selected_cover} under a setting of {selected_style}.", 
+                        'current_state': detected_state, 
+                        'water_temp': f"{estimated_water_temp:.1f}°F", 
+                        'barometric_pressure': trend, 
+                        'cloud_cover': cloud_word, 
+                        'wind_speed': f"{current['wind_speed_10m']} mph", 
+                        'water_clarity': selected_clarity
+                    })
+                    st.session_state.current_raw_output = result.raw if hasattr(result, 'raw') else str(result)
                     
             if "current_raw_output" in st.session_state:
                 st.markdown(st.session_state.current_raw_output.split("### 🎣 Tactical Strategy Plan")[1].strip() if "### 🎣 Tactical Strategy Plan" in st.session_state.current_raw_output else st.session_state.current_raw_output)
@@ -461,9 +454,6 @@ if lat and lon:
                 returned_objects=["last_clicked"]
             )
 
-            # =====================================================================
-            # 📝 IN-APP LOCAL CATCH LOG FORM (WRITES TO SQLITE)
-            # =====================================================================
             last_click = map_data.get("last_clicked") if map_data else None
             
             if last_click:
@@ -501,9 +491,6 @@ if lat and lon:
                         st.toast("🎉 Catch logged to local SQLite database! Refreshing map pins...", icon="🎣")
                         st.rerun()
 
-            # =====================================================================
-            # 📥 BACKUP DOWNLOAD & EXTERNAL DEPTH CHARTS
-            # =====================================================================
             st.markdown("---")
             b_col1, b_col2 = st.columns(2)
             
@@ -521,7 +508,7 @@ if lat and lon:
                     if not export_df.empty:
                         csv_data = export_df.to_csv(index=False).encode('utf-8')
                         st.download_button(
-                            label="📥 Download Database Copy (.CSV)",
+                            label="📥 Download Database Copy to Phone (.CSV)",
                             data=csv_data,
                             file_name=f"my_fishing_log_{datetime.now().strftime('%Y%m%d')}.csv",
                             mime="text/csv",
