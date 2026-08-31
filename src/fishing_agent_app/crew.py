@@ -10,9 +10,9 @@ if "GROQ_API_KEY" in st.secrets:
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
-# 🚀 Enforce the exact 70B Versatile model tier across all agents
+# 🚀 Use Llama 3.1 8B Instant to prevent Groq rate limits during multi-agent runs
 groq_llm = LLM(
-    model="groq/llama-3.3-70b-versatile",
+    model="groq/llama-3.1-8b-instant",
     temperature=0.3
 )
 
