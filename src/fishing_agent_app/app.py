@@ -56,9 +56,16 @@ def get_address_from_gps(lat, lon):
     headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
     try:
         url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
-        return requests.get(url, headers=headers, timeout=5).json()
+        res = requests.get(url, headers=headers, timeout=5).json()
+        address = res.get('address', {})
+        
+        # Dynamically grab the city/town and state/region directly from the API payload
+        city = address.get('city', address.get('town', address.get('suburb', address.get('county', address.get('village', 'Local Area')))))
+        state = address.get('state', address.get('state_district', address.get('region', '')))
+        
+        return {'city': city, 'state': state}
     except Exception:
-        return {}
+        return {'city': 'Local Area', 'state': ''}
 
 @st.cache_data(ttl=600)
 def fetch_cached_weather(lat, lon):
@@ -93,12 +100,6 @@ def init_db():
 
 init_db()
 
-STATE_DICTIONARY = {
-    "wa": "Washington", "or": "Oregon", "tx": "Texas", "pa": "Pennsylvania",
-    "fl": "Florida", "ca": "California", "ny": "New York", "mi": "Michigan",
-    "mn": "Minnesota", "oh": "Ohio", "wi": "Wisconsin", "ga": "Georgia"
-}
-
 if "scouted_lakes_options" not in st.session_state:
     st.session_state.scouted_lakes_options = []
 if "active_water_body" not in st.session_state:
@@ -115,7 +116,7 @@ routing_mode = st.radio(
 )
 
 lat, lon, location_name, base_anchor_city = None, None, "", ""
-detected_state, input_state = "", ""
+detected_state = ""
 
 if routing_mode == "🛰️ Use My Live GPS Coordinates":
     st.markdown("### 🛰️ Mobile Satellite Link")
@@ -124,28 +125,19 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
     if location_data and location_data.get('latitude') is not None:
         lat = float(location_data['latitude'])
         lon = float(location_data['longitude'])
-        try:
-            rev_res = get_address_from_gps(lat, lon)
-            address = rev_res.get('address', {})
-            city = address.get('city', address.get('town', address.get('village', 'Local Area')))
-            state = address.get('state', 'Unknown State')
-            
-            # Map common state abbreviations if Nominatim returns them
-            if state in STATE_DICTIONARY.values():
-                pass
-            
-            location_name = f"{city}, {state}"
-            base_anchor_city = f"{city}, {state}"
-            detected_state, input_state = state, state
-        except Exception:
-            # DYNAMIC FALLBACK: Use exact GPS hardware coordinates if API fails
-            location_name = f"GPS Target ({lat:.2f}, {lon:.2f})"
-            base_anchor_city = f"{lat}, {lon}"
-            detected_state, input_state = "Unknown State", "Unknown State"
-            
+        
+        # Retrieve live address details directly from GPS coordinates
+        geo_info = get_address_from_gps(lat, lon)
+        city = geo_info['city']
+        state = geo_info['state']
+        
+        detected_state = state if state else "Local Region"
+        location_name = f"{city}, {state}" if state else city
+        base_anchor_city = location_name
+        
         st.success(f"🎯 Locked Position: **{location_name}** ({lat:.4f}, {lon:.4f})")
     else:
-        st.write("⏳ *Awaiting satellite link activation (Tap the crosshairs icon)...*")
+        st.write("⏳ *Awaiting satellite link activation...*")
 
 elif routing_mode == "📍 Enter a Location / City / Water Body":
     user_location = st.text_input("📍 Type a City, State, ZIP, or specific Water Body:", value="")
@@ -160,17 +152,11 @@ elif routing_mode == "📍 Enter a Location / City / Water Body":
             location_name = user_location.strip()
             st.session_state.active_water_body = user_location.strip()
             
-            rev_res = get_address_from_gps(lat, lon)
-            address = rev_res.get('address', {})
-            detected_state = address.get('state', 'Unknown State')
-            input_state = detected_state
+            geo_info = get_address_from_gps(lat, lon)
+            detected_state = geo_info['state'] if geo_info['state'] else "Local Region"
             st.success(f"🎯 Position Resolved: **{location_name}** ({lat:.4f}, {lon:.4f})")
 
-# Parse state fallback
-clean_state_key = input_state.strip().lower()
-if clean_state_key in STATE_DICTIONARY:
-    input_state = STATE_DICTIONARY[clean_state_key]
-    detected_state = input_state
+input_state = detected_state
 
 # =====================================================================
 # 🎨 STEP 2, 3 & 4: CONFIGURATION MENUS
