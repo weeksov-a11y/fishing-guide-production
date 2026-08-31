@@ -10,10 +10,9 @@ os.environ["GROQ_API_KEY"] = groq_key
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
-# 🚀 Pass Groq through OpenAI-compatible routing to eliminate model_not_found errors
+# 🚀 Use Groq's permanent Llama 3 model string
 groq_llm = LLM(
-    model="openai/llama-3.3-70b-versatile",
-    base_url="https://api.groq.com/openai/v1",
+    model="groq/llama3-8b-8192",
     api_key=groq_key,
     temperature=0.3
 )
