@@ -10,9 +10,9 @@ os.environ["GROQ_API_KEY"] = groq_key
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
-# 🚀 Use Groq's permanent Llama 3 model string
+# 🚀 Use Groq's active Llama 3.1 8B Instant model
 groq_llm = LLM(
-    model="groq/llama3-8b-8192",
+    model="groq/llama-3.1-8b-instant",
     api_key=groq_key,
     temperature=0.3
 )
