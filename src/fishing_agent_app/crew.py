@@ -10,10 +10,9 @@ os.environ["GROQ_API_KEY"] = groq_key
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
-# 🚀 Active Groq replacement model following August 2026 deprecation
+# 🚀 Pass groq/ prefix + complete model ID so LiteLLM targets Groq with full name
 groq_llm = LLM(
-    model="openai/gpt-oss-20b",
-    base_url="https://api.groq.com/openai/v1",
+    model="groq/openai/gpt-oss-20b",
     api_key=groq_key,
     temperature=0.3
 )
