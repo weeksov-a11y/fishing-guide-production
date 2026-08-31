@@ -10,9 +10,10 @@ os.environ["GROQ_API_KEY"] = groq_key
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
-# 🚀 Use Groq's active Llama 3.1 8B Instant model
+# 🚀 Active Groq replacement model following August 2026 deprecation
 groq_llm = LLM(
-    model="groq/llama-3.1-8b-instant",
+    model="openai/gpt-oss-20b",
+    base_url="https://api.groq.com/openai/v1",
     api_key=groq_key,
     temperature=0.3
 )
