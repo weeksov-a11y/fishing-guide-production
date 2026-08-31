@@ -10,9 +10,9 @@ if "GROQ_API_KEY" in st.secrets:
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
-# 🏎️ Fully shifting the backend brain to Groq's ultra-fast, uncapped free tier
+# 🚀 Enforce the exact 70B Versatile model tier across all agents
 groq_llm = LLM(
-    model="groq/llama-3.1-8b-instant",
+    model="groq/llama-3.3-70b-versatile",
     temperature=0.3
 )
 
