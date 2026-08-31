@@ -9,6 +9,7 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 from datetime import datetime
+import litellm
 
 # 🛰️ Native Universal Hardware Geolocation Link
 from streamlit_geolocation import streamlit_geolocation
@@ -25,16 +26,14 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🚀 Robust Groq Model Specification for CrewAI & LiteLLM
-GROQ_MODEL_NAME = "groq/llama-3.3-70b-versatile"
-
+# 🚀 Structured CrewAI LLM Object
 production_70b_llm = LLM(
-    model=GROQ_MODEL_NAME,
+    model="groq/llama-3.3-70b-versatile",
     api_key=groq_key_fallback,
     temperature=0.1
 )
 
-os.environ["OPENAI_MODEL_NAME"] = GROQ_MODEL_NAME
+os.environ["OPENAI_MODEL_NAME"] = "groq/llama-3.3-70b-versatile"
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
 st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="wide")
@@ -208,23 +207,17 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
         with st.spinner("🤖 Scanning regional data networks to compile optimized destinations..."):
             prompt = f"Provide a clean list of exactly 5 real, specific local named {env_choice} fishing locations (lakes, rivers, or public access boat launches) located within a 50 mile driving radius of {search_anchor} that offer the highest mathematical probability for catching {target_fish}. Output ONLY the 5 specific names separated by newlines, with no markdown formatting, no bullet points, no dashes, and no numbers."
             try:
-                # Direct API invocation via CrewAI LLM wrapper method
-                scout_res = production_70b_llm.call(messages=[{"role": "user", "content": prompt}])
-                raw_text = str(scout_res).strip()
+                response = litellm.completion(
+                    model="groq/llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": prompt}],
+                    api_key=groq_key_fallback
+                )
+                raw_text = response.choices[0].message.content.strip()
                 cleaned_list = [re.sub(r'^\d+[.)]\s*|^[*-]\s*', '', line).strip() for line in raw_text.split("\n") if line.strip()]
                 if cleaned_list:
                     st.session_state.scouted_lakes_options = cleaned_list[:5]
             except Exception as e:
-                # Graceful fallback attempt using groq/llama3-70b-8192 if 3.3 endpoint has account routing restrictions
-                try:
-                    fallback_llm = LLM(model="groq/llama3-70b-8192", api_key=groq_key_fallback, temperature=0.1)
-                    scout_res = fallback_llm.call(messages=[{"role": "user", "content": prompt}])
-                    raw_text = str(scout_res).strip()
-                    cleaned_list = [re.sub(r'^\d+[.)]\s*|^[*-]\s*', '', line).strip() for line in raw_text.split("\n") if line.strip()]
-                    if cleaned_list:
-                        st.session_state.scouted_lakes_options = cleaned_list[:5]
-                except Exception as err2:
-                    st.error(f"Scouting Engine update interrupted: {err2}")
+                st.error(f"Scouting Engine update interrupted: {e}")
 
 if st.session_state.scouted_lakes_options:
     selected_suggested = st.selectbox(
