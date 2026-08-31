@@ -26,9 +26,9 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🚀 Use Groq's permanent Llama 3 model string
+# 🚀 Use Groq's active Llama 3.1 8B Instant model
 production_llm = LLM(
-    model="groq/llama3-8b-8192",
+    model="groq/llama-3.1-8b-instant",
     api_key=groq_key_fallback,
     temperature=0.1
 )
@@ -207,7 +207,7 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": "llama3-8b-8192",
+                "model": "llama-3.1-8b-instant",
                 "messages": [
                     {"role": "system", "content": "You are a raw data generator. You output plain text lists with zero formatting, numbers, or chatter."},
                     {"role": "user", "content": prompt}
