@@ -26,14 +26,16 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🚀 Structured CrewAI LLM Object
-production_70b_llm = LLM(
-    model="groq/llama-3.3-70b-versatile",
+# 🚀 Align with Llama 3.1 8B Instant model string
+GROQ_MODEL_ID = "groq/llama-3.1-8b-instant"
+
+production_8b_llm = LLM(
+    model=GROQ_MODEL_ID,
     api_key=groq_key_fallback,
     temperature=0.1
 )
 
-os.environ["OPENAI_MODEL_NAME"] = "groq/llama-3.3-70b-versatile"
+os.environ["OPENAI_MODEL_NAME"] = GROQ_MODEL_ID
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
 st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="wide")
@@ -208,7 +210,7 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
             prompt = f"Provide a clean list of exactly 5 real, specific local named {env_choice} fishing locations (lakes, rivers, or public access boat launches) located within a 50 mile driving radius of {search_anchor} that offer the highest mathematical probability for catching {target_fish}. Output ONLY the 5 specific names separated by newlines, with no markdown formatting, no bullet points, no dashes, and no numbers."
             try:
                 response = litellm.completion(
-                    model="groq/llama-3.3-70b-versatile",
+                    model=GROQ_MODEL_ID,
                     messages=[{"role": "user", "content": prompt}],
                     api_key=groq_key_fallback
                 )
@@ -343,9 +345,15 @@ if lat and lon:
                     water_context = f"the area or water body named {active_water_body} in {detected_state}."
                     
                     compiled_crew = FishingAgentApp().crew()
-                    for agent in compiled_crew.agents:
-                        agent.llm = production_70b_llm
                     
+                    # Ensure all agents use the 8B LLM instance
+                    for agent in compiled_crew.agents:
+                        agent.llm = production_8b_llm
+                    if hasattr(compiled_crew, 'tasks'):
+                        for task in compiled_crew.tasks:
+                            if hasattr(task, 'agent') and task.agent:
+                                task.agent.llm = production_8b_llm
+
                     result = compiled_crew.kickoff(inputs={
                         'target_fish': target_fish, 
                         'environment': f"{water_context} holding active targets. Your primary directive is to {selected_spawn}, optimize hot spots targeting areas to {selected_cover} under a setting of {selected_style}.", 
