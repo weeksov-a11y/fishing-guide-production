@@ -196,23 +196,42 @@ st.subheader("🔍 Phase 1: Scout Regional Hotspots (Optional)")
 st.info("Find top rated water bodies nearby, or proceed directly using your anchor location.")
 
 if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_container_width=True):
-    search_anchor = base_anchor_city if base_anchor_city else f"{lat}, {lon}"
-    if search_anchor:
-        with st.spinner("🤖 Scanning regional data networks to compile optimized destinations..."):
-            prompt = f"Provide a clean list of exactly 5 real, specific local named {env_choice} fishing locations (lakes, rivers, or public access boat launches) located within a 50 mile driving radius of {search_anchor} that offer the highest mathematical probability for catching {target_fish}. Output ONLY the 5 specific names separated by newlines, with no markdown formatting, no bullet points, no dashes, and no numbers."
-            try:
-                response = litellm.completion(
-                    model="openai/llama-3.3-70b-versatile",
-                    api_base="https://api.groq.com/openai/v1",
-                    api_key=groq_key_fallback,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                raw_text = response.choices[0].message.content.strip()
-                cleaned_list = [re.sub(r'^\d+[.)]\s*|^[*-]\s*', '', line).strip() for line in raw_text.split("\n") if line.strip()]
-                if cleaned_list:
-                    st.session_state.scouted_lakes_options = cleaned_list[:5]
-            except Exception as e:
-                st.error(f"Scouting Engine update interrupted: {e}")
+    search_anchor = base_anchor_city if base_anchor_city else (f"{lat}, {lon}" if lat and lon else "Arlington, VA")
+    target_species = target_fish if target_fish else "Gamefish"
+    
+    with st.spinner(f"🤖 Scanning regional water bodies near {search_anchor}..."):
+        prompt = f"List exactly 5 real, specific, named public fishing spots (lakes, rivers, reservoirs, or access parks) within 50 miles of {search_anchor} for catching {target_species}. Output ONLY the 5 names, one per line. No introduction, no numbers, no bullet points, no extra text."
+        
+        try:
+            response = litellm.completion(
+                model="openai/llama-3.3-70b-versatile",
+                api_base="https://api.groq.com/openai/v1",
+                api_key=groq_key_fallback,
+                messages=[
+                    {"role": "system", "content": "You are a raw data generator. You output plain text lists with zero formatting, numbers, or chatter."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.2,
+                timeout=10
+            )
+            raw_text = response.choices[0].message.content.strip()
+            
+            # Clean up potential list numbering or bullet artifacts
+            cleaned_list = []
+            for line in raw_text.split("\n"):
+                clean_line = re.sub(r'^\d+[\.\)]\s*|^[\*\-\•]\s*', '', line).strip()
+                if clean_line and len(clean_line) > 2:
+                    cleaned_list.append(clean_line)
+                    
+            if cleaned_list:
+                st.session_state.scouted_lakes_options = cleaned_list[:5]
+                st.success("🎯 Scouted 5 regional target locations!")
+            else:
+                st.warning("⚠️ Couldn't parse location names. Try clicking scout again.")
+                
+        except Exception as e:
+            st.error(f"Scouting Engine interrupted: {e}")
+
 
 if st.session_state.scouted_lakes_options:
     selected_suggested = st.selectbox(
