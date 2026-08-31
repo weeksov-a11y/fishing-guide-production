@@ -26,10 +26,9 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🚀 Active Groq replacement model following August 2026 deprecation
+# 🚀 Fixed provider prefix for LiteLLM + Groq model targeting
 production_llm = LLM(
-    model="openai/gpt-oss-20b",
-    base_url="https://api.groq.com/openai/v1",
+    model="groq/openai/gpt-oss-20b",
     api_key=groq_key_fallback,
     temperature=0.1
 )
@@ -237,8 +236,7 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
                 
         except Exception as e:
             st.error(f"Scouting Engine interrupted: {e}")
-
-
+            
 if st.session_state.scouted_lakes_options:
     selected_suggested = st.selectbox(
         "🎯 Select a scouted hotspot to refine your target (optional):",
