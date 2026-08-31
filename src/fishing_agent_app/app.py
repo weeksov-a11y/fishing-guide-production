@@ -26,10 +26,9 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🚀 Fixed OpenAI-Compatible Groq LLM Routing
-production_70b_llm = LLM(
-    model="openai/llama-3.3-70b-versatile",
-    base_url="https://api.groq.com/openai/v1",
+# 🚀 Use Groq's permanent Llama 3 model string
+production_llm = LLM(
+    model="groq/llama3-8b-8192",
     api_key=groq_key_fallback,
     temperature=0.1
 )
@@ -203,31 +202,38 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
         prompt = f"List exactly 5 real, specific, named public fishing spots (lakes, rivers, reservoirs, or access parks) within 50 miles of {search_anchor} for catching {target_species}. Output ONLY the 5 names, one per line. No introduction, no numbers, no bullet points, no extra text."
         
         try:
-            response = litellm.completion(
-                model="openai/llama-3.3-70b-versatile",
-                api_base="https://api.groq.com/openai/v1",
-                api_key=groq_key_fallback,
-                messages=[
+            headers = {
+                "Authorization": f"Bearer {groq_key_fallback}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": "llama3-8b-8192",
+                "messages": [
                     {"role": "system", "content": "You are a raw data generator. You output plain text lists with zero formatting, numbers, or chatter."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.2,
-                timeout=10
-            )
-            raw_text = response.choices[0].message.content.strip()
+                "temperature": 0.2
+            }
             
-            # Clean up potential list numbering or bullet artifacts
-            cleaned_list = []
-            for line in raw_text.split("\n"):
-                clean_line = re.sub(r'^\d+[\.\)]\s*|^[\*\-\•]\s*', '', line).strip()
-                if clean_line and len(clean_line) > 2:
-                    cleaned_list.append(clean_line)
-                    
-            if cleaned_list:
-                st.session_state.scouted_lakes_options = cleaned_list[:5]
-                st.success("🎯 Scouted 5 regional target locations!")
+            response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=10)
+            
+            if response.status_code == 200:
+                raw_text = response.json()['choices'][0]['message']['content'].strip()
+                
+                cleaned_list = []
+                for line in raw_text.split("\n"):
+                    clean_line = re.sub(r'^\d+[\.\)]\s*|^[\*\-\•]\s*', '', line).strip()
+                    if clean_line and len(clean_line) > 2:
+                        cleaned_list.append(clean_line)
+                        
+                if cleaned_list:
+                    st.session_state.scouted_lakes_options = cleaned_list[:5]
+                    st.success("🎯 Scouted 5 regional target locations!")
+                else:
+                    st.warning("⚠️ Couldn't parse location names. Try clicking scout again.")
             else:
-                st.warning("⚠️ Couldn't parse location names. Try clicking scout again.")
+                error_msg = response.json().get('error', {}).get('message', 'Unknown API Error')
+                st.error(f"Groq API Error: {error_msg}")
                 
         except Exception as e:
             st.error(f"Scouting Engine interrupted: {e}")
@@ -359,11 +365,11 @@ if lat and lon:
                     compiled_crew = FishingAgentApp().crew()
                     
                     for agent in compiled_crew.agents:
-                        agent.llm = production_70b_llm
+                        agent.llm = production_llm
                     if hasattr(compiled_crew, 'tasks'):
                         for task in compiled_crew.tasks:
                             if hasattr(task, 'agent') and task.agent:
-                                task.agent.llm = production_70b_llm
+                                task.agent.llm = production_llm
 
                     result = compiled_crew.kickoff(inputs={
                         'target_fish': target_fish, 
