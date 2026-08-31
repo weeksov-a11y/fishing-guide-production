@@ -115,7 +115,7 @@ routing_mode = st.radio(
 )
 
 lat, lon, location_name, base_anchor_city = None, None, "", ""
-detected_state, input_state = "Washington", "Washington"
+detected_state, input_state = "", ""
 
 if routing_mode == "🛰️ Use My Live GPS Coordinates":
     st.markdown("### 🛰️ Mobile Satellite Link")
@@ -127,20 +127,28 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
         try:
             rev_res = get_address_from_gps(lat, lon)
             address = rev_res.get('address', {})
-            city = address.get('city', address.get('town', address.get('village', 'Unknown Area')))
-            state = address.get('state', 'Washington')
+            city = address.get('city', address.get('town', address.get('village', 'Local Area')))
+            state = address.get('state', 'Unknown State')
+            
+            # Map common state abbreviations if Nominatim returns them
+            if state in STATE_DICTIONARY.values():
+                pass
+            
             location_name = f"{city}, {state}"
             base_anchor_city = f"{city}, {state}"
             detected_state, input_state = state, state
         except Exception:
-            location_name = "Auburn, WA"
-            base_anchor_city = "Auburn, WA"
+            # DYNAMIC FALLBACK: Use exact GPS hardware coordinates if API fails
+            location_name = f"GPS Target ({lat:.2f}, {lon:.2f})"
+            base_anchor_city = f"{lat}, {lon}"
+            detected_state, input_state = "Unknown State", "Unknown State"
+            
         st.success(f"🎯 Locked Position: **{location_name}** ({lat:.4f}, {lon:.4f})")
     else:
-        st.write("⏳ *Awaiting satellite link activation...*")
+        st.write("⏳ *Awaiting satellite link activation (Tap the crosshairs icon)...*")
 
 elif routing_mode == "📍 Enter a Location / City / Water Body":
-    user_location = st.text_input("📍 Type a City, State, ZIP, or specific Water Body (e.g. 'Tacoma, WA' or 'Lake Kapowsin'):", value="Auburn, WA")
+    user_location = st.text_input("📍 Type a City, State, ZIP, or specific Water Body:", value="")
     
     if user_location.strip():
         base_anchor_city = user_location.strip()
@@ -154,10 +162,11 @@ elif routing_mode == "📍 Enter a Location / City / Water Body":
             
             rev_res = get_address_from_gps(lat, lon)
             address = rev_res.get('address', {})
-            detected_state = address.get('state', 'Washington')
+            detected_state = address.get('state', 'Unknown State')
             input_state = detected_state
             st.success(f"🎯 Position Resolved: **{location_name}** ({lat:.4f}, {lon:.4f})")
 
+# Parse state fallback
 clean_state_key = input_state.strip().lower()
 if clean_state_key in STATE_DICTIONARY:
     input_state = STATE_DICTIONARY[clean_state_key]
