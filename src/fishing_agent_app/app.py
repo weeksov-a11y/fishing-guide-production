@@ -17,25 +17,22 @@ from streamlit_geolocation import streamlit_geolocation
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 # 🔑 Load the Groq Key from Secrets Vault
-groq_key_fallback = st.secrets["GROQ_API_KEY"] if "GROQ_API_KEY" in st.secrets else os.environ.get("GROQ_API_KEY")
+groq_key_fallback = st.secrets["GROQ_API_KEY"] if "GROQ_API_KEY" in st.secrets else os.environ.get("GROQ_API_KEY", "")
 
-os.environ["GROQ_API_KEY"] = groq_key_fallback if groq_key_fallback else ""
+os.environ["GROQ_API_KEY"] = groq_key_fallback
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🚀 Align with Llama 3.1 8B Instant model string
-GROQ_MODEL_ID = "groq/llama-3.1-8b-instant"
-
-production_8b_llm = LLM(
-    model=GROQ_MODEL_ID,
+# 🚀 Fixed OpenAI-Compatible Groq LLM Routing
+production_70b_llm = LLM(
+    model="openai/llama-3.3-70b-versatile",
+    base_url="https://api.groq.com/openai/v1",
     api_key=groq_key_fallback,
     temperature=0.1
 )
-
-os.environ["OPENAI_MODEL_NAME"] = GROQ_MODEL_ID
 
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
 st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="wide")
@@ -210,9 +207,10 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
             prompt = f"Provide a clean list of exactly 5 real, specific local named {env_choice} fishing locations (lakes, rivers, or public access boat launches) located within a 50 mile driving radius of {search_anchor} that offer the highest mathematical probability for catching {target_fish}. Output ONLY the 5 specific names separated by newlines, with no markdown formatting, no bullet points, no dashes, and no numbers."
             try:
                 response = litellm.completion(
-                    model=GROQ_MODEL_ID,
-                    messages=[{"role": "user", "content": prompt}],
-                    api_key=groq_key_fallback
+                    model="openai/llama-3.3-70b-versatile",
+                    api_base="https://api.groq.com/openai/v1",
+                    api_key=groq_key_fallback,
+                    messages=[{"role": "user", "content": prompt}]
                 )
                 raw_text = response.choices[0].message.content.strip()
                 cleaned_list = [re.sub(r'^\d+[.)]\s*|^[*-]\s*', '', line).strip() for line in raw_text.split("\n") if line.strip()]
@@ -346,13 +344,12 @@ if lat and lon:
                     
                     compiled_crew = FishingAgentApp().crew()
                     
-                    # Ensure all agents use the 8B LLM instance
                     for agent in compiled_crew.agents:
-                        agent.llm = production_8b_llm
+                        agent.llm = production_70b_llm
                     if hasattr(compiled_crew, 'tasks'):
                         for task in compiled_crew.tasks:
                             if hasattr(task, 'agent') and task.agent:
-                                task.agent.llm = production_8b_llm
+                                task.agent.llm = production_70b_llm
 
                     result = compiled_crew.kickoff(inputs={
                         'target_fish': target_fish, 
