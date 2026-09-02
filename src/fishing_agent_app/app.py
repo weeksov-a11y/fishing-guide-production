@@ -205,7 +205,7 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": "openai/gpt-oss-20b",
+                "model": "llama-3.1-8b-instant",
                 "messages": [
                     {"role": "system", "content": "You are a raw data generator. Output plain text lists only."},
                     {"role": "user", "content": prompt}
