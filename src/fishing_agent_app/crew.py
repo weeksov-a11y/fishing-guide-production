@@ -3,14 +3,13 @@ from crewai.project import CrewBase, agent, crew, task
 import os
 import streamlit as st
 
-# Check for Groq key in Streamlit secrets
 groq_key = st.secrets["GROQ_API_KEY"] if "GROQ_API_KEY" in st.secrets else os.environ.get("GROQ_API_KEY", "")
 os.environ["GROQ_API_KEY"] = groq_key
 
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
-# 🚀 Pass groq/ prefix + complete model ID so LiteLLM targets Groq with full name
+# 🚀 Use direct Groq provider routing for CrewAI
 groq_llm = LLM(
     model="groq/llama-3.1-8b-instant",
     api_key=groq_key,
