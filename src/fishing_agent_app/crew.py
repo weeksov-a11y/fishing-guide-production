@@ -9,7 +9,7 @@ os.environ["GROQ_API_KEY"] = groq_key
 os.environ["LITELLM_DROP_PARAMS"] = "True"
 os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
-# 🚀 Use direct Groq provider routing for CrewAI
+# 🚀 Use direct native Groq routing
 groq_llm = LLM(
     model="groq/llama-3.1-8b-instant",
     api_key=groq_key,
