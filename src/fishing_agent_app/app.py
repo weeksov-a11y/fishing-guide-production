@@ -202,6 +202,7 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
         prompt = f"List exactly 5 real, specific, named public fishing spots (lakes, rivers, reservoirs, or access parks) within 50 miles of {search_anchor} for catching {target_species}. Output ONLY the 5 names, one per line. No introduction, no numbers, no bullet points, no extra text."
         
         try:
+            api_url = "https://api.groq.com/openai/v1/chat/completions"
             headers = {
                 "Authorization": f"Bearer {groq_key_fallback}",
                 "Content-Type": "application/json"
@@ -216,7 +217,7 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
                 "max_tokens": 150
             }
             
-            response = requests.post("[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", headers=headers, json=payload, timeout=10)
+            response = requests.post(api_url, headers=headers, json=payload, timeout=10)
             
             if response.status_code == 200:
                 raw_text = response.json()['choices'][0]['message']['content'].strip()
@@ -228,11 +229,9 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
                 cleaned_list = []
                 for line in raw_text.split("\n"):
                     clean_line = re.sub(r'^\d+[\.\)]\s*|^[\*\-\•]\s*', '', line).strip()
-                    # Filter out lines that are conversational sentences instead of place names
                     if clean_line and len(clean_line) > 2 and not any(p in clean_line.lower() for p in ["here are", "sure", "following", "locations", "spots near"]):
                         cleaned_list.append(clean_line)
                         
-                # Fallback if strict filtering was too tight
                 if not cleaned_list:
                     cleaned_list = [l.strip() for l in raw_text.split("\n") if l.strip() and len(l.strip()) > 2]
 
