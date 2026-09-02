@@ -216,17 +216,26 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
                 "max_tokens": 150
             }
             
-            response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=10)
+            response = requests.post("[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", headers=headers, json=payload, timeout=10)
             
             if response.status_code == 200:
                 raw_text = response.json()['choices'][0]['message']['content'].strip()
                 
+                # Strip markdown code block wrappers if the model includes them
+                raw_text = re.sub(r'```[a-zA-Z]*\n?', '', raw_text)
+                raw_text = raw_text.replace('```', '')
+                
                 cleaned_list = []
                 for line in raw_text.split("\n"):
                     clean_line = re.sub(r'^\d+[\.\)]\s*|^[\*\-\•]\s*', '', line).strip()
-                    if clean_line and len(clean_line) > 2:
+                    # Filter out lines that are conversational sentences instead of place names
+                    if clean_line and len(clean_line) > 2 and not any(p in clean_line.lower() for p in ["here are", "sure", "following", "locations", "spots near"]):
                         cleaned_list.append(clean_line)
                         
+                # Fallback if strict filtering was too tight
+                if not cleaned_list:
+                    cleaned_list = [l.strip() for l in raw_text.split("\n") if l.strip() and len(l.strip()) > 2]
+
                 if cleaned_list:
                     st.session_state.scouted_lakes_options = cleaned_list[:5]
                     st.success("🎯 Scouted 5 regional target locations!")
@@ -238,6 +247,7 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
                 
         except Exception as e:
             st.error(f"Scouting Engine interrupted: {e}")
+
 
 if st.session_state.scouted_lakes_options:
     selected_suggested = st.selectbox(
