@@ -12,7 +12,7 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
 # 🚀 Pass groq/ prefix + complete model ID so LiteLLM targets Groq with full name
 groq_llm = LLM(
-    model="groq/openai/gpt-oss-20b",
+    model="groq/llama-3.1-8b-instant",
     api_key=groq_key,
     temperature=0.3
 )
