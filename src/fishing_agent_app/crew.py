@@ -11,7 +11,7 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
 # 🚀 Use direct native Groq routing
 groq_llm = LLM(
-    model="groq/openai/gpt-oss-20b",
+    model="groq/meta-llama/llama-4-scout-17b-16e-instruct",
     api_key=groq_key,
     temperature=0.3
 )
