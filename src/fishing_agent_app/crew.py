@@ -11,11 +11,10 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 
 # 🚀 Use direct native Groq routing
 groq_llm = LLM(
-    model="groq/llama-3.1-8b-instant",
+    model="groq/openai/gpt-oss-20b",
     api_key=groq_key,
     temperature=0.3
 )
-
 @CrewBase
 class FishingAgentApp():
     """FishingAgentApp crew for analyzing conditions, checking regional rules, and prescribing gear"""
