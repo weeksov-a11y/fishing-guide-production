@@ -195,7 +195,6 @@ st.subheader("🔍 Phase 1: Scout Regional Hotspots (Optional)")
 st.info("Find top rated water bodies nearby, or proceed directly using your anchor location.")
 
 if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_container_width=True):
-if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_container_width=True):
     search_anchor = base_anchor_city if base_anchor_city else (f"{lat}, {lon}" if lat and lon else "Arlington, VA")
     target_species = target_fish if target_fish else "Gamefish"
     
@@ -254,7 +253,6 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
             # Fallback on network exception so the app keeps moving
             st.session_state.scouted_lakes_options = ["Burke Lake", "Lake Accotink", "Occoquan Reservoir", "Potomac River", "Lake Fairfax Park"]
             st.success("🎯 Scouted 5 regional target locations (Offline Backup)!")
-
 
 if st.session_state.scouted_lakes_options:
     selected_suggested = st.selectbox(
