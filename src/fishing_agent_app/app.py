@@ -26,12 +26,15 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🚀 Fixed provider prefix for LiteLLM + Groq model targeting
+# 🚀 Configured with Groq's active gpt-oss-20b model and token limits to prevent TPM rate limits
 production_llm = LLM(
-    model="groq/openai/gpt-oss-20b",
+    model="openai/gpt-oss-20b",
+    base_url="https://api.groq.com/openai/v1",
     api_key=groq_key_fallback,
-    temperature=0.1
+    temperature=0.1,
+    max_tokens=1000
 )
+
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
 st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="wide")
 st.title("🎣 Mobile Fishing Advisor")
@@ -57,7 +60,6 @@ def get_address_from_gps(lat, lon):
         res = requests.get(url, headers=headers, timeout=5).json()
         address = res.get('address', {})
         
-        # Dynamically grab the city/town and state/region directly from the API payload
         city = address.get('city', address.get('town', address.get('suburb', address.get('county', address.get('village', 'Local Area')))))
         state = address.get('state', address.get('state_district', address.get('region', '')))
         
@@ -124,7 +126,6 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
         lat = float(location_data['latitude'])
         lon = float(location_data['longitude'])
         
-        # Retrieve live address details directly from GPS coordinates
         geo_info = get_address_from_gps(lat, lon)
         city = geo_info['city']
         state = geo_info['state']
@@ -208,10 +209,11 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
             payload = {
                 "model": "openai/gpt-oss-20b",
                 "messages": [
-                    {"role": "system", "content": "You are a raw data generator. You output plain text lists with zero formatting, numbers, or chatter."},
+                    {"role": "system", "content": "You are a raw data generator. Output plain text lists only."},
                     {"role": "user", "content": prompt}
                 ],
-                "temperature": 0.2
+                "temperature": 0.2,
+                "max_tokens": 150
             }
             
             response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=10)
@@ -236,7 +238,7 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
                 
         except Exception as e:
             st.error(f"Scouting Engine interrupted: {e}")
-            
+
 if st.session_state.scouted_lakes_options:
     selected_suggested = st.selectbox(
         "🎯 Select a scouted hotspot to refine your target (optional):",
