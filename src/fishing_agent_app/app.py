@@ -28,9 +28,10 @@ from fishing_agent_app.crew import FishingAgentApp
 
 # 🚀 Configured with Groq's active gpt-oss-20b model and token limits to prevent TPM rate limits
 production_llm = LLM(
-    model="groq/llama-3.1-8b-instant",
+    model="groq/openai/gpt-oss-20b",
     api_key=groq_key_fallback,
-    temperature=0.1
+    temperature=0.1,
+    max_tokens=1000
 )
 logo_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
 st.set_page_config(page_title="Global Mobile Fishing Crew", page_icon=logo_path, layout="wide")
@@ -205,7 +206,7 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": "llama-3.1-8b-instant",
+                "model": "openai/gpt-oss-20b",
                 "messages": [
                     {"role": "system", "content": "You are a raw data generator. Output plain text lists only."},
                     {"role": "user", "content": prompt}
