@@ -28,7 +28,7 @@ from fishing_agent_app.crew import FishingAgentApp
 
 # 🚀 Configured with Groq's active gpt-oss-20b model and token limits to prevent TPM rate limits
 production_llm = LLM(
-    model="groq/openai/gpt-oss-20b",
+    model="groq/meta-llama/llama-4-scout-17b-16e-instruct",
     api_key=groq_key_fallback,
     temperature=0.1,
     max_tokens=1000
@@ -206,7 +206,7 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": "openai/gpt-oss-20b",
+                "model": "meta-llama/llama-4-scout-17b-16e-instruct",
                 "messages": [
                     {"role": "system", "content": "You are a raw data generator. Output plain text lists only."},
                     {"role": "user", "content": prompt}
