@@ -26,9 +26,9 @@ os.environ["CREWAI_DISABLE_PROMPT_CACHING"] = "true"
 from crewai import LLM
 from fishing_agent_app.crew import FishingAgentApp
 
-# 🚀 Configured with Groq's active llama-3.3-70b-versatile model and token limits to prevent TPM rate limits
+# 🚀 Configured with Groq's active gpt-oss-20b model and token limits to prevent TPM rate limits
 production_llm = LLM(
-    model="groq/llama-3.3-70b-versatile",
+    model="groq/openai/gpt-oss-20b",
     api_key=groq_key_fallback,
     temperature=0.1,
     max_tokens=1000
@@ -206,7 +206,7 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": "llama-3.3-70b-versatile",
+                "model": "openai/gpt-oss-20b",
                 "messages": [
                     {"role": "system", "content": "You are a raw data generator. Output plain text lists only."},
                     {"role": "user", "content": prompt}
