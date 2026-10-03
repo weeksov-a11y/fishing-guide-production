@@ -4,6 +4,7 @@ import os
 import requests
 import urllib.parse
 import re
+import time
 import sqlite3
 import pandas as pd
 import folium
@@ -193,6 +194,20 @@ target_fish = st.pills("Choose target profile:", options=species_options, defaul
 # 🔍 PHASE 1 ENGINE: REGIONAL SCOUTING ENGINE
 # =====================================================================
 st.markdown("---")
+# 🗺️ State-aware offline fallback lakes (used only if the AI scout call fails)
+FALLBACK_LAKES_BY_STATE = {
+    "Washington": ["Lake Washington", "Lake Sammamish", "Lake Tapps", "American Lake", "Lake Whatcom"],
+    "Oregon": ["Hagg Lake", "Detroit Lake", "Timothy Lake", "Trillium Lake", "Wallowa Lake"],
+    "California": ["Clear Lake", "Lake Berryessa", "Lake Shasta", "Diamond Valley Lake", "Lake Tahoe"],
+    "Texas": ["Lake Fork", "Lake Travis", "Toledo Bend Reservoir", "Sam Rayburn Reservoir", "Lake Conroe"],
+    "Pennsylvania": ["Raystown Lake", "Lake Wallenpaupack", "Pymatuning Reservoir", "Lake Nockamixon", "Blue Marsh Lake"],
+}
+DEFAULT_FALLBACK_LAKES = ["Lake Washington", "Clear Lake", "Lake Fork", "Raystown Lake", "Lake Tahoe"]
+
+def get_fallback_lakes(state):
+    """Return offline backup lakes for the detected state."""
+    return FALLBACK_LAKES_BY_STATE.get(state, DEFAULT_FALLBACK_LAKES)
+
 st.subheader("🔍 Phase 1: Scout Regional Hotspots (Optional)")
 st.info("Find top rated water bodies nearby, or proceed directly using your anchor location.")
 
@@ -219,7 +234,12 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
                 "max_tokens": 150
             }
             
-            response = requests.post(api_url, headers=headers, json=payload, timeout=10)
+            response = None
+            for _attempt in range(3):
+                response = requests.post(api_url, headers=headers, json=payload, timeout=15)
+                if response.status_code != 429:
+                    break
+                time.sleep(2 ** _attempt * 2)  # 2s, 4s, 8s backoff on rate limits
             
             cleaned_list = []
             if response.status_code == 200:
@@ -246,14 +266,14 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
 
             # Guaranteed fallback list so it never fails to populate your dropdown
             if not cleaned_list:
-                cleaned_list = ["Burke Lake", "Lake Accotink", "Occoquan Reservoir", "Potomac River", "Lake Fairfax Park"]
+                cleaned_list = get_fallback_lakes(detected_state)
 
             st.session_state.scouted_lakes_options = cleaned_list[:5]
             st.success("🎯 Scouted 5 regional target locations!")
                 
         except Exception as e:
             # Fallback on network exception so the app keeps moving
-            st.session_state.scouted_lakes_options = ["Burke Lake", "Lake Accotink", "Occoquan Reservoir", "Potomac River", "Lake Fairfax Park"]
+            st.session_state.scouted_lakes_options = get_fallback_lakes(detected_state)
             st.success("🎯 Scouted 5 regional target locations (Offline Backup)!")
 
 if st.session_state.scouted_lakes_options:
