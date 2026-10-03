@@ -11,6 +11,10 @@ from streamlit_folium import st_folium
 from datetime import datetime
 import litellm
 
+# 🔁 Auto-retry Groq calls that hit 429 rate limits (free tier is 8k TPM)
+# LiteLLM retries RateLimitErrors with exponential backoff automatically.
+litellm.num_retries = 5
+
 # 🛰️ Native Universal Hardware Geolocation Link
 from streamlit_geolocation import streamlit_geolocation
 
