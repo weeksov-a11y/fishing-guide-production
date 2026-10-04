@@ -5,6 +5,7 @@ import requests
 import urllib.parse
 import re
 import time
+import math
 import sqlite3
 import pandas as pd
 import folium
@@ -47,11 +48,25 @@ st.logo(logo_path)
 # ⚡ CENTRAL ANTI-LAG CACHING MATRIX
 # =====================================================================
 @st.cache_data(ttl=600)
-def get_coordinates_from_osm(search_query):
+def get_coordinates_from_osm(search_query, lat=None, lon=None, limit=5):
+    # Nominatim search biased toward the anchor point.
+    # Returns up to `limit` candidates (with address details) so callers
+    # can rank by state match and distance instead of trusting one blind hit.
     headers = {'User-Agent': 'PNWFishingAdvisorApp/2.0'}
     try:
-        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(search_query)}&countrycodes=us,ca,mx&format=json&limit=1"
-        return requests.get(url, headers=headers, timeout=5).json()
+        params = {
+            "q": search_query,
+            "countrycodes": "us,ca,mx",
+            "format": "json",
+            "limit": limit,
+            "addressdetails": 1,
+        }
+        if lat is not None and lon is not None:
+            d = 1.5  # ~100-mile viewbox bias around the anchor
+            params["viewbox"] = f"{lon-d},{lat+d},{lon+d},{lat-d}"
+        url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode(params)
+        res = requests.get(url, headers=headers, timeout=8).json()
+        return res if isinstance(res, list) else []
     except Exception:
         return []
 
@@ -69,6 +84,63 @@ def get_address_from_gps(lat, lon):
         return {'city': city, 'state': state}
     except Exception:
         return {'city': 'Local Area', 'state': ''}
+
+def haversine_miles(lat1, lon1, lat2, lon2):
+    # Great-circle distance in miles.
+    r = 3958.8
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    a = math.sin(math.radians(lat2 - lat1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(math.radians(lon2 - lon1) / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+def pick_best_osm_result(results, anchor_lat, anchor_lon, state):
+    # Pick the candidate in the right state and closest to the anchor.
+    # State match first, then haversine distance. Never trusts
+    # Nominatim's importance ranking alone.
+    if not results:
+        return None
+    want_state = (state or "").strip().lower()
+    state_known = bool(want_state) and want_state != "local region"
+    scored = []
+    for res in results:
+        try:
+            rlat, rlon = float(res["lat"]), float(res["lon"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        addr = res.get("address") or {}
+        rstate = (addr.get("state") or "").lower()
+        state_ok = bool(state_known and rstate and (want_state in rstate or rstate in want_state))
+        if anchor_lat is not None and anchor_lon is not None:
+            dist = haversine_miles(anchor_lat, anchor_lon, rlat, rlon)
+        else:
+            dist = float("inf")
+        scored.append((0 if state_ok else 1, dist, res))
+    if not scored:
+        return None
+    scored.sort(key=lambda t: (t[0], t[1]))
+    return scored[0][2]
+
+def resolve_lake_location(query_body, anchor_lat, anchor_lon, state, quiet=False, max_miles=60):
+    # Resolve a lake name to (lat, lon) near the anchor.
+    # Tries state-qualified then bare queries, always proximity-ranked.
+    # Returns None instead of a far-away guess.
+    candidates = []
+    want_state = (state or "").strip()
+    if want_state and want_state.lower() != "local region":
+        candidates = get_coordinates_from_osm(f"{query_body}, {want_state}", lat=anchor_lat, lon=anchor_lon)
+    if not candidates:
+        candidates = get_coordinates_from_osm(query_body, lat=anchor_lat, lon=anchor_lon)
+    best = pick_best_osm_result(candidates, anchor_lat, anchor_lon, want_state)
+    if not best:
+        return None
+    try:
+        blat, blon = float(best["lat"]), float(best["lon"])
+    except (KeyError, ValueError, TypeError):
+        return None
+    if anchor_lat is not None and haversine_miles(anchor_lat, anchor_lon, blat, blon) > max_miles:
+        if not quiet:
+            st.warning("Lake '" + query_body + "' only matched places far from your location - keeping your anchor point instead.")
+        return None
+    return (blat, blon)
 
 @st.cache_data(ttl=600)
 def fetch_cached_weather(lat, lon):
@@ -118,6 +190,15 @@ routing_mode = st.radio(
     horizontal=True
 )
 
+# Clear stale lake selections when the routing mode changes, otherwise
+# an old state's lake can linger and resolve far away (P0-2).
+if "prev_routing_mode" not in st.session_state:
+    st.session_state.prev_routing_mode = routing_mode
+if st.session_state.prev_routing_mode != routing_mode:
+    st.session_state.active_water_body = ""
+    st.session_state.scouted_lakes_options = []
+    st.session_state.prev_routing_mode = routing_mode
+
 lat, lon, location_name, base_anchor_city = None, None, "", ""
 detected_state = ""
 
@@ -137,9 +218,13 @@ if routing_mode == "🛰️ Use My Live GPS Coordinates":
         location_name = f"{city}, {state}" if state else city
         base_anchor_city = location_name
         
+        st.session_state.geo_miss_streak = 0
         st.success(f"🎯 Locked Position: **{location_name}** ({lat:.4f}, {lon:.4f})")
     else:
+        st.session_state.geo_miss_streak = st.session_state.get("geo_miss_streak", 0) + 1
         st.write("⏳ *Awaiting satellite link activation...*")
+        if st.session_state.geo_miss_streak >= 3:
+            st.warning("📡 GPS is not responding (this needs HTTPS + location permission). Try the text search mode instead.")
 
 elif routing_mode == "📍 Enter a Location / City / Water Body":
     user_location = st.text_input("📍 Type a City, State, ZIP, or specific Water Body:", value="")
@@ -211,8 +296,11 @@ def get_fallback_lakes(state):
 st.subheader("🔍 Phase 1: Scout Regional Hotspots (Optional)")
 st.info("Find top rated water bodies nearby, or proceed directly using your anchor location.")
 
-if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_container_width=True):
-    search_anchor = base_anchor_city if base_anchor_city else (f"{lat}, {lon}" if lat and lon else "Arlington, VA")
+anchor_ready = lat is not None and lon is not None
+if not anchor_ready:
+    st.caption("📍 Set your location above to enable scouting.")
+if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_container_width=True, disabled=not anchor_ready):
+    search_anchor = base_anchor_city if base_anchor_city else f"{lat}, {lon}"
     target_species = target_fish if target_fish else "Gamefish"
     
     with st.spinner(f"🤖 Scanning regional water bodies near {search_anchor}..."):
@@ -268,6 +356,16 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
             if not cleaned_list:
                 cleaned_list = get_fallback_lakes(detected_state)
 
+            # Drop anything that does not actually resolve near the anchor;
+            # the LLM's 'within 50 miles' is never validated otherwise.
+            nearby = []
+            for _name in cleaned_list[:5]:
+                if resolve_lake_location(_name, lat, lon, detected_state, quiet=True):
+                    nearby.append(_name)
+            if nearby and len(nearby) < len(cleaned_list[:5]):
+                st.warning(f"⚠️ Dropped {len(cleaned_list[:5]) - len(nearby)} scouted spot(s) that were not near your location.")
+                cleaned_list = nearby
+
             st.session_state.scouted_lakes_options = cleaned_list[:5]
             st.success("🎯 Scouted 5 regional target locations!")
                 
@@ -280,7 +378,8 @@ if st.session_state.scouted_lakes_options:
     selected_suggested = st.selectbox(
         "🎯 Select a scouted hotspot to refine your target (optional):",
         options=["(Use Main Anchor Location)"] + st.session_state.scouted_lakes_options,
-        index=0
+        index=0,
+        key="scouted_lake_select",
     )
     if selected_suggested and selected_suggested != "(Use Main Anchor Location)":
         st.session_state.active_water_body = selected_suggested
@@ -289,22 +388,24 @@ active_water_body = st.session_state.active_water_body if st.session_state.activ
 
 if active_water_body and active_water_body != location_name:
     try:
-        query_body = active_water_body.strip()
-        if re.search(r"kapow", query_body, re.IGNORECASE):
-            query_body = "Lake Kapowsin"
-        elif re.search(r"ohop", query_body, re.IGNORECASE):
-            query_body = "Lake Ohop"
-        elif env_choice == "Freshwater" and fw_category == "🏡 Lakes" and not re.search(r"\blake\b", query_body, re.IGNORECASE):
+        display_name = active_water_body.strip()
+        query_body = display_name
+        if input_state == "Washington":
+            if re.search(r"kapow", query_body, re.IGNORECASE):
+                query_body = "Lake Kapowsin"
+            elif re.search(r"ohop", query_body, re.IGNORECASE):
+                query_body = "Lake Ohop"
+        if env_choice == "Freshwater" and fw_category == "🏡 Lakes" and not re.search(r"\b(lake|river|reservoir|creek|pond|park|bay)\b", query_body, re.IGNORECASE):
             query_body = f"Lake {query_body}"
-            
-        search_query = f"{query_body}, {input_state}"
-        osm_res = get_coordinates_from_osm(search_query)
-        if not osm_res:
-            osm_res = get_coordinates_from_osm(query_body)
-        if osm_res:
-            lat = float(osm_res[0]["lat"])
-            lon = float(osm_res[0]["lon"])
-            active_water_body = query_body
+
+        # Proximity-ranked resolution: state match first, then distance.
+        # Never silently accepts a far-away guess.
+        resolved = resolve_lake_location(query_body, lat, lon, input_state)
+        if resolved:
+            lat, lon = resolved
+            active_water_body = display_name
+        else:
+            st.warning("Could not pin down '" + display_name + "' on the map - showing your anchor location instead.")
     except Exception:
         pass
 
@@ -455,20 +556,32 @@ if lat and lon:
             else:
                 st.session_state.map_view["center"] = [lat, lon]
 
+            # USGS National Map layers: free, no key, public domain.
+            # NOTE: ArcGIS REST endpoints use {z}/{y}/{x} order - do not 'fix'.
             m = folium.Map(
                 location=st.session_state.map_view["center"], 
                 zoom_start=st.session_state.map_view["zoom"],
-                tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-                attr="Google Hybrid Imagery",
-                name="Google Satellite Hybrid"
+                tiles="https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}",
+                attr="USGS The National Map",
+                name="USGS Imagery + Topo"
             )
 
             folium.TileLayer(
-                tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-                attr="OpenTopoMap Contributors",
-                name="Topographic Terrain Model",
+                tiles="https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}",
+                attr="USGS The National Map",
+                name="USGS Topo (National Map)",
                 overlay=False,
-                control=True
+                control=True,
+                max_zoom=16
+            ).add_to(m)
+
+            folium.TileLayer(
+                tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+                attr="Map data: © OpenStreetMap contributors, SRTM | Map style: © OpenTopoMap (CC-BY-SA)",
+                name="OpenTopoMap",
+                overlay=False,
+                control=True,
+                max_zoom=17
             ).add_to(m)
 
             folium.TileLayer(
