@@ -293,6 +293,29 @@ def get_fallback_lakes(state):
     """Return offline backup lakes for the detected state."""
     return FALLBACK_LAKES_BY_STATE.get(state, DEFAULT_FALLBACK_LAKES)
 
+@st.cache_data(ttl=1800, show_spinner=False)
+def run_tactical_crew(target_fish, environment, current_state, water_temp, barometric_pressure, cloud_cover, wind_speed, water_clarity):
+    # Builds the crew fresh on each uncached call and runs one kickoff.
+    # Cached by inputs for 30 min so repeat taps do not re-burn Groq tokens.
+    _crew = FishingAgentApp().crew()
+    for _agent in _crew.agents:
+        _agent.llm = production_llm
+    if hasattr(_crew, 'tasks'):
+        for _task in _crew.tasks:
+            if hasattr(_task, 'agent') and _task.agent:
+                _task.agent.llm = production_llm
+    _res = _crew.kickoff(inputs={
+        'target_fish': target_fish,
+        'environment': environment,
+        'current_state': current_state,
+        'water_temp': water_temp,
+        'barometric_pressure': barometric_pressure,
+        'cloud_cover': cloud_cover,
+        'wind_speed': wind_speed,
+        'water_clarity': water_clarity,
+    })
+    return _res.raw if hasattr(_res, 'raw') else str(_res)
+
 st.subheader("🔍 Phase 1: Scout Regional Hotspots (Optional)")
 st.info("Find top rated water bodies nearby, or proceed directly using your anchor location.")
 
@@ -500,26 +523,36 @@ if lat and lon:
 
                     water_context = f"the area or water body named {active_water_body} in {detected_state}."
                     
-                    compiled_crew = FishingAgentApp().crew()
-                    
-                    for agent in compiled_crew.agents:
-                        agent.llm = production_llm
-                    if hasattr(compiled_crew, 'tasks'):
-                        for task in compiled_crew.tasks:
-                            if hasattr(task, 'agent') and task.agent:
-                                task.agent.llm = production_llm
-
-                    result = compiled_crew.kickoff(inputs={
-                        'target_fish': target_fish, 
-                        'environment': f"{water_context} holding active targets. Your primary directive is to {selected_spawn}, optimize hot spots targeting areas to {selected_cover} under a setting of {selected_style}.", 
-                        'current_state': detected_state, 
-                        'water_temp': f"{estimated_water_temp:.1f}°F", 
-                        'barometric_pressure': trend, 
-                        'cloud_cover': cloud_word, 
-                        'wind_speed': f"{current['wind_speed_10m']} mph", 
-                        'water_clarity': selected_clarity
-                    })
-                    st.session_state.current_raw_output = result.raw if hasattr(result, 'raw') else str(result)
+                    # Free-tier friendly: the 3-agent crew can exceed Groq's
+                    # 8k TPM free limit in one kickoff. On a 429, wait out the
+                    # token window and retry instead of surfacing the error.
+                    _crew_inputs = {
+                        'target_fish': target_fish,
+                        'environment': f"{water_context} holding active targets. Your primary directive is to {selected_spawn}, optimize hot spots targeting areas to {selected_cover} under a setting of {selected_style}.",
+                        'current_state': detected_state,
+                        'water_temp': f"{estimated_water_temp:.1f}°F",
+                        'barometric_pressure': trend,
+                        'cloud_cover': cloud_word,
+                        'wind_speed': f"{current['wind_speed_10m']} mph",
+                        'water_clarity': selected_clarity,
+                    }
+                    _plan_text = None
+                    for _attempt in range(3):
+                        try:
+                            _plan_text = run_tactical_crew(**_crew_inputs)
+                            break
+                        except Exception as _e:
+                            _msg = str(_e)
+                            _flat = _msg.lower().replace(" ", "").replace("_", "")
+                            _is_rl = "ratelimit" in _flat or "rate limit" in _msg.lower()
+                            _m = re.search(r"try again in ([\d.]+)s", _msg)
+                            if _is_rl and _attempt < 2:
+                                _wait = min((float(_m.group(1)) + 5) if _m else 65, 95)
+                                st.info(f"⏳ Groq free tier is at its token limit \u2014 retrying in ~{int(_wait)}s (attempt {_attempt + 2} of 3)...")
+                                time.sleep(_wait)
+                                continue
+                            raise
+                    st.session_state.current_raw_output = _plan_text
                     
             if "current_raw_output" in st.session_state:
                 st.markdown(st.session_state.current_raw_output.split("### 🎣 Tactical Strategy Plan")[1].strip() if "### 🎣 Tactical Strategy Plan" in st.session_state.current_raw_output else st.session_state.current_raw_output)
