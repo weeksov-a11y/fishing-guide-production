@@ -619,8 +619,9 @@ if lat and lon:
             if "map_view" not in st.session_state or st.session_state.get("last_water_body") != active_water_body:
                 st.session_state.map_view = {"center": [lat, lon], "zoom": 14}
                 st.session_state.last_water_body = active_water_body
-            else:
-                st.session_state.map_view["center"] = [lat, lon]
+            # NOTE: do NOT reset map_view["center"] here on every rerun.
+            # Doing so snaps the map back to the anchor whenever the script
+            # re-executes, fighting the user's pan/zoom gestures.
 
             # USGS National Map layers: free, no key, public domain.
             # NOTE: ArcGIS REST endpoints use {z}/{y}/{x} order - do not 'fix'.
@@ -681,10 +682,13 @@ if lat and lon:
             m.add_child(folium.LatLngPopup())
 
             map_data = st_folium(
-                m, 
+                m,
                 use_container_width=True,
-                height=450, 
-                key=f"structural_grid_{lat}_{lon}",
+                height=450,
+                # Constant key: st_folium hashes the map content itself, so a
+                # float-based key only triggers spurious full remounts (tile
+                # reload + view reset) when GPS coords jitter between runs.
+                key="structural_grid",
                 returned_objects=["last_clicked"]
             )
 
