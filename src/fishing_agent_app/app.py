@@ -273,7 +273,16 @@ elif input_state == "Oregon":
 else:
     species_options = ["Largemouth Bass", "Smallmouth Bass", "Rainbow Trout", "Crappie", "Panfish/Bluegill", "Catfish"] if env_choice == "Freshwater" else ["Coastal Gamefish", "Inshore Sea Trout", "Striper", "Flounder"]
 
-target_fish = st.pills("Choose target profile:", options=species_options, default=species_options[0] if species_options else "", label_visibility="collapsed")
+target_fish = st.pills("Choose target profile:", options=species_options, default=species_options[0] if species_options else "", label_visibility="collapsed", key=f"species_pills_{input_state}_{env_choice}")
+
+# Switching environment invalidates the other environment's selections:
+# clear scouted spots, the active water body, and any stale strategy output.
+if st.session_state.get("last_env_choice") != env_choice:
+    st.session_state["last_env_choice"] = env_choice
+    st.session_state.scouted_lakes_options = []
+    st.session_state.active_water_body = ""
+    st.session_state.pop("current_raw_output", None)
+    st.session_state.pop("scouted_lake_select", None)
 
 # =====================================================================
 # 🔍 PHASE 1 ENGINE: REGIONAL SCOUTING ENGINE
@@ -292,6 +301,26 @@ DEFAULT_FALLBACK_LAKES = ["Lake Washington", "Clear Lake", "Lake Fork", "Raystow
 def get_fallback_lakes(state):
     """Return offline backup lakes for the detected state."""
     return FALLBACK_LAKES_BY_STATE.get(state, DEFAULT_FALLBACK_LAKES)
+
+# Saltwater (marine) equivalents: public piers, jetties, and marine parks.
+FALLBACK_PIERS_BY_STATE = {
+    "Washington": ["Edmonds Fishing Pier", "Des Moines Fishing Pier", "Les Davis Pier", "Alki Beach Park", "Mukilteo Lighthouse Park"],
+    "Oregon": ["Yaquina Bay South Jetty", "Tillamook Bay South Jetty", "Siuslaw River South Jetty", "Winchester Bay South Jetty", "Columbia River South Jetty"],
+    "California": ["Santa Monica Pier", "Manhattan Beach Pier", "Redondo Beach Pier", "Huntington Beach Pier", "San Clemente Pier"],
+    "Texas": ["Port Aransas South Jetty", "San Luis Pass", "Packery Channel", "Galveston Seawall", "Matagorda Beach"],
+    "Pennsylvania": ["Presque Isle Bay", "Erie Harbor North Pier", "Walnut Creek Access", "Trout Run", "Godfrey Run"],
+}
+DEFAULT_FALLBACK_PIERS = ["Santa Monica Pier", "Edmonds Fishing Pier", "Huntington Beach Pier", "Port Aransas South Jetty", "Redondo Beach Pier"]
+
+def get_fallback_piers(state):
+    """Return offline backup saltwater access points for the detected state."""
+    return FALLBACK_PIERS_BY_STATE.get(state, DEFAULT_FALLBACK_PIERS)
+
+def get_offline_spots(state, env_choice):
+    """Offline backup spots honoring the selected environment."""
+    if env_choice == "Freshwater":
+        return get_fallback_lakes(state)
+    return get_fallback_piers(state)
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def run_tactical_crew(target_fish, environment, current_state, water_temp, barometric_pressure, cloud_cover, wind_speed, water_clarity):
@@ -317,17 +346,19 @@ def run_tactical_crew(target_fish, environment, current_state, water_temp, barom
     return _res.raw if hasattr(_res, 'raw') else str(_res)
 
 st.subheader("🔍 Phase 1: Scout Regional Hotspots (Optional)")
-st.info("Find top rated water bodies nearby, or proceed directly using your anchor location.")
+_is_saltwater = env_choice != "Freshwater"
+st.info("Find top rated saltwater access points nearby, or proceed directly using your anchor location." if _is_saltwater else "Find top rated water bodies nearby, or proceed directly using your anchor location.")
 
 anchor_ready = lat is not None and lon is not None
 if not anchor_ready:
     st.caption("📍 Set your location above to enable scouting.")
-if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_container_width=True, disabled=not anchor_ready):
+if st.button("🔍 Scout Top 5 Saltwater Access Points" if _is_saltwater else "🔍 Scout Top 5 Local Water Bodies", type="secondary", use_container_width=True, disabled=not anchor_ready):
     search_anchor = base_anchor_city if base_anchor_city else f"{lat}, {lon}"
     target_species = target_fish if target_fish else "Gamefish"
-    
-    with st.spinner(f"🤖 Scanning regional water bodies near {search_anchor}..."):
-        prompt = f"List exactly 5 real, specific, named public fishing spots (lakes, rivers, reservoirs, or access parks) within 50 miles of {search_anchor} for catching {target_species}. Output ONLY the 5 names, one per line. No introduction, no numbers, no bullet points, no extra text."
+    spot_kinds = "public saltwater fishing access points (fishing piers, jetties, marine parks, boat launches, or shoreline access)" if _is_saltwater else "public fishing spots (lakes, rivers, reservoirs, or access parks)"
+
+    with st.spinner(f"🤖 Scanning regional {'saltwater access points' if _is_saltwater else 'water bodies'} near {search_anchor}..."):
+        prompt = f"List exactly 5 real, specific, named {spot_kinds} within 50 miles of {search_anchor} for catching {target_species}. Output ONLY the 5 names, one per line. No introduction, no numbers, no bullet points, no extra text."
         
         try:
             api_url = "https://api.groq.com/openai/v1/chat/completions"
@@ -377,7 +408,7 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
 
             # Guaranteed fallback list so it never fails to populate your dropdown
             if not cleaned_list:
-                cleaned_list = get_fallback_lakes(detected_state)
+                cleaned_list = get_offline_spots(detected_state, env_choice)
 
             # Drop anything that does not actually resolve near the anchor;
             # the LLM's 'within 50 miles' is never validated otherwise.
@@ -394,7 +425,7 @@ if st.button("🔍 Scout Top 5 Local Water Bodies", type="secondary", use_contai
                 
         except Exception as e:
             # Fallback on network exception so the app keeps moving
-            st.session_state.scouted_lakes_options = get_fallback_lakes(detected_state)
+            st.session_state.scouted_lakes_options = get_offline_spots(detected_state, env_choice)
             st.success("🎯 Scouted 5 regional target locations (Offline Backup)!")
 
 if st.session_state.scouted_lakes_options:
@@ -443,7 +474,8 @@ if lat and lon:
         s_col1, s_col2 = st.columns(2)
         with s_col1:
             water_clarity = st.radio("💧 Current Water Clarity Observation:", options=["🤖 Let AI Agents Decide", "Clear Water Visibility", "Slightly Stained / Milky", "Stained / Muddy Runoff"], horizontal=True)
-            cover_type = st.radio("🌿 Dominant Visible Structure/Cover:", options=["🤖 Let AI Agents Decide", "Submerged Timber/Logs", "Heavy Vegetation/Lily Pads", "Rocky Drop-offs & Riprap", "Docks & Structural Pilings"], horizontal=True)
+            _cover_options = ["🤖 Let AI Agents Decide", "Pier Pilings & Structure", "Rocky Jetty & Riprap", "Sandy Beach Troughs", "Kelp Beds & Eelgrass"] if env_choice != "Freshwater" else ["🤖 Let AI Agents Decide", "Submerged Timber/Logs", "Heavy Vegetation/Lily Pads", "Rocky Drop-offs & Riprap", "Docks & Structural Pilings"]
+            cover_type = st.radio("🌿 Dominant Visible Structure/Cover:", options=_cover_options, horizontal=True)
         with s_col2:
             spawn_phase = st.radio("🐟 Lifecycle Breeding Target Stage:", options=["🤖 Let AI Agents Decide", "Deep Winter Staging", "Pre-Spawn Staging Flocks", "Shallow Spawning Beds", "Summer Post-Spawn Patterns"], horizontal=True)
             fishing_style = st.radio("👟 Mobility / Angler Framework:", options=["🤖 Let AI Agents Decide", "Foot / Shoreline Angler", "Power Boat / Deep Hull", "Kayak / Stealth Shallow"], horizontal=True)
@@ -522,13 +554,14 @@ if lat and lon:
                     selected_style = "provide general tactical approaches for both shore and watercraft setups" if fishing_style == "🤖 Let AI Agents Decide" else f"tailored for a {fishing_style} approach pattern"
 
                     water_context = f"the area or water body named {active_water_body} in {detected_state}."
+                    env_label = "saltwater (marine)" if env_choice != "Freshwater" else "freshwater"
                     
                     # Free-tier friendly: the 3-agent crew can exceed Groq's
                     # 8k TPM free limit in one kickoff. On a 429, wait out the
                     # token window and retry instead of surfacing the error.
                     _crew_inputs = {
                         'target_fish': target_fish,
-                        'environment': f"{water_context} holding active targets. Your primary directive is to {selected_spawn}, optimize hot spots targeting areas to {selected_cover} under a setting of {selected_style}.",
+                        'environment': f"{env_label} environment at {water_context} holding active targets. Your primary directive is to {selected_spawn}, optimize hot spots targeting areas to {selected_cover} under a setting of {selected_style}.",
                         'current_state': detected_state,
                         'water_temp': f"{estimated_water_temp:.1f}°F",
                         'barometric_pressure': trend,
