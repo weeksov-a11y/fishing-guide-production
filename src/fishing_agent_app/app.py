@@ -13,9 +13,11 @@ from streamlit_folium import st_folium
 from datetime import datetime
 import litellm
 
-# 🔁 Auto-retry Groq calls that hit 429 rate limits (free tier is 8k TPM)
-# LiteLLM retries RateLimitErrors with exponential backoff automatically.
-litellm.num_retries = 5
+# Groq 429 handling: do NOT let litellm retry internally.
+# Free tier is 8k TPM; internal retries with short backoff just burn more budget and
+# guarantee the next attempt also 429s (retry death spiral). One clean attempt per call --
+# the app waits out the TPM window itself.
+litellm.num_retries = 0
 
 # 🛰️ Native Universal Hardware Geolocation Link
 from streamlit_geolocation import streamlit_geolocation
@@ -570,22 +572,35 @@ if lat and lon:
                         'water_clarity': selected_clarity,
                     }
                     _plan_text = None
-                    for _attempt in range(3):
+                    _plan_error = None
+                    for _attempt in range(2):
                         try:
                             _plan_text = run_tactical_crew(**_crew_inputs)
+                            _plan_error = None
                             break
                         except Exception as _e:
+                            _plan_error = _e
                             _msg = str(_e)
                             _flat = _msg.lower().replace(" ", "").replace("_", "")
                             _is_rl = "ratelimit" in _flat or "rate limit" in _msg.lower()
-                            _m = re.search(r"try again in ([\d.]+)s", _msg)
-                            if _is_rl and _attempt < 2:
-                                _wait = min((float(_m.group(1)) + 5) if _m else 65, 95)
-                                st.info(f"⏳ Groq free tier is at its token limit \u2014 retrying in ~{int(_wait)}s (attempt {_attempt + 2} of 3)...")
+                            if _is_rl and _attempt == 0:
+                                # One deliberate retry after the TPM window clears.
+                                # Retrying sooner just burns budget and guarantees another 429.
+                                _m = re.search(r"try again in ([\d.]+)s", _msg)
+                                _wait = min(max((float(_m.group(1)) + 10) if _m else 70, 70), 95)
+                                st.info(f"\u23f3 Groq free tier is at its token limit \u2014 waiting ~{int(_wait)}s for it to reset, then retrying once...")
                                 time.sleep(_wait)
                                 continue
-                            raise
-                    st.session_state.current_raw_output = _plan_text
+                            break
+                    if _plan_text:
+                        st.session_state.current_raw_output = _plan_text
+                    elif _plan_error:
+                        _emsg = str(_plan_error)
+                        _eflat = _emsg.lower().replace(" ", "").replace("_", "")
+                        if "ratelimit" in _eflat or "rate limit" in _emsg.lower():
+                            st.warning("⏳ Groq\u2019s free tier is still at its token limit. Wait a minute or two, then tap **Generate** again \u2014 your settings are saved.")
+                        else:
+                            st.error(f"Strategy generation failed: {_plan_error}")
                     
             if "current_raw_output" in st.session_state:
                 st.markdown(st.session_state.current_raw_output.split("### 🎣 Tactical Strategy Plan")[1].strip() if "### 🎣 Tactical Strategy Plan" in st.session_state.current_raw_output else st.session_state.current_raw_output)
