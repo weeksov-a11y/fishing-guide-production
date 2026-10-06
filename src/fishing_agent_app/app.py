@@ -10,7 +10,7 @@ import sqlite3
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import litellm
 
 # Groq 429 handling: do NOT let litellm retry internally.
@@ -510,13 +510,45 @@ if lat and lon:
         live_gauge_data = "Station data unavailable for static land locations."
         if env_choice == "Freshwater":
             try:
-                usgs_res = requests.get(f"https://waterservices.usgs.gov/nwis/iv/?format=json&bBox={lon-0.45:.4f},{lat-0.45:.4f},{lon+0.45:.4f},{lat+0.45:.4f}&parameterCd=00060,00065&siteStatus=active", timeout=6).json()
-                time_series = usgs_res.get('value', {}).get('timeSeries', [])
-                if time_series:
-                    ts_entry = time_series[0]
-                    val = ts_entry['values'][0]['value'][0]['value']
-                    unit = "CFS (Flow)" if "00060" in ts_entry['variable']['variableCode'][0]['value'] else "ft (Height)"
-                    live_gauge_data = f"🌊 Gauge: {ts_entry['sourceInfo']['siteName']} | State: {val} {unit}"
+                # USGS Water Data API (api.waterdata.usgs.gov). The legacy
+                # WaterServices IV endpoint is being decommissioned (Feb 2027).
+                # latest-continuous = most recent observation per time series
+                # ("instantaneous values" / IV): streamflow 00060 + gage height 00065.
+                _gbbox = f"{lon-0.45:.4f},{lat-0.45:.4f},{lon+0.45:.4f},{lat+0.45:.4f}"
+                _usgs = requests.get(
+                    "https://api.waterdata.usgs.gov/ogcapi/v1/collections/latest-continuous/items",
+                    params={"f": "json", "bbox": _gbbox, "parameter_code": "00060,00065", "limit": 25},
+                    timeout=6,
+                ).json()
+                _cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+                _best = None
+                for _ft in _usgs.get("features", []):
+                    _pp = _ft.get("properties", {}) or {}
+                    if _pp.get("value") in (None, ""):
+                        continue
+                    try:
+                        _gdt = datetime.fromisoformat(str(_pp.get("time")))
+                    except (ValueError, TypeError):
+                        continue
+                    if _gdt.tzinfo is None:
+                        _gdt = _gdt.replace(tzinfo=timezone.utc)
+                    if _gdt >= _cutoff and (_best is None or _gdt > _best[0]):
+                        _best = (_gdt, _pp)
+                if _best:
+                    _pp = _best[1]
+                    _gval = _pp.get("value")
+                    _gunit = "CFS (Flow)" if "00060" in str(_pp.get("parameter_code", "")) else "ft (Height)"
+                    _gloc = str(_pp.get("monitoring_location_id") or "")
+                    _gsite = _gloc.split("-", 1)[-1] if "-" in _gloc else (_gloc or "unknown site")
+                    try:
+                        _gml = requests.get(
+                            f"https://api.waterdata.usgs.gov/ogcapi/v1/collections/monitoring-locations/items/{_gloc}",
+                            params={"f": "json"}, timeout=4,
+                        ).json()
+                        _gsite = _gml.get("properties", {}).get("monitoring_location_name") or _gsite
+                    except Exception:
+                        pass
+                    live_gauge_data = f"\U0001f30a Gauge: {_gsite} | State: {_gval} {_gunit}"
             except Exception: pass
 
         bite_score = max(10, min(100, 50 + (20 if "Rising" in trend else 10 if "Stable" in trend else -15) + (15 if "Cloudy" in cloud_word or "Overcast" in cloud_word else 0) + (15 if current['wind_speed_10m'] < 10 else -20 if current['wind_speed_10m'] > 18 else 0)))
